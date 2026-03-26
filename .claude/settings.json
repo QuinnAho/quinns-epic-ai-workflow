@@ -1,0 +1,120 @@
+{
+  "env": {
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "qwen3.5:27b"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run lint --if-present 2>/dev/null; npm test --if-present 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/judgment-gate.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[Claude Session Ended]' && date >> .claude-logs/sessions.log 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Bash command intercepted for safety check'"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Task",
+      "Edit",
+      "Write"
+    ],
+    "deny": []
+  },
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "description": "Live, version-specific documentation for 9000+ libraries"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub PR management, issues, Actions workflows"
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Persistent cross-session memory in JSONL format"
+    },
+    "eslint": {
+      "command": "npx",
+      "args": ["-y", "@eslint/mcp"],
+      "description": "ESLint rules exposed directly to AI for lint-compliant generation"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-playwright"],
+      "description": "Browser automation for UI testing"
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-desktop-commander"],
+      "description": "Terminal execution, process management, fuzzy file search"
+    }
+  },
+  "model": {
+    "default": "claude-sonnet-4-20250514",
+    "architecture": "claude-opus-4-20250514",
+    "subagents": "qwen3.5:27b"
+  },
+  "localModels": {
+    "ollama": {
+      "baseUrl": "http://localhost:11434",
+      "models": {
+        "qwen3.5:27b": {
+          "description": "Implementation, test generation",
+          "contextLength": 262144
+        },
+        "qwen2.5-coder:32b": {
+          "description": "Autocomplete, simple edits",
+          "contextLength": 32768
+        },
+        "qwen3.5:35b-a3b": {
+          "description": "Fast agentic tasks (112 tok/s)",
+          "contextLength": 131072
+        }
+      }
+    }
+  }
+}
