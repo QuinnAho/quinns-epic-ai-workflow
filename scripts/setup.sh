@@ -242,9 +242,40 @@ install_ralph() {
     echo ""
 }
 
+# Install LiteLLM proxy (bridges Claude Code → Ollama)
+install_litellm() {
+    echo -e "${BOLD}Step 6: LiteLLM Proxy (Claude Code → Ollama Gateway)${NC}"
+
+    if command -v litellm &> /dev/null; then
+        echo -e "${GREEN}✓${NC} LiteLLM already installed"
+    else
+        echo -e "${BLUE}Installing LiteLLM proxy...${NC}"
+        if command -v pip3 &> /dev/null; then
+            pip3 install 'litellm[proxy]' --quiet
+            echo -e "${GREEN}✓${NC} LiteLLM installed"
+        elif command -v pip &> /dev/null; then
+            pip install 'litellm[proxy]' --quiet
+            echo -e "${GREEN}✓${NC} LiteLLM installed"
+        else
+            echo -e "${YELLOW}⚠${NC} pip not found - install LiteLLM manually: pip install litellm[proxy]"
+        fi
+    fi
+
+    if [ -f "litellm-config.yaml" ]; then
+        echo -e "${GREEN}✓${NC} litellm-config.yaml found"
+    else
+        echo -e "${YELLOW}⚠${NC} litellm-config.yaml missing - copy from template repo"
+    fi
+
+    echo ""
+    echo "  To start the gateway:  ./scripts/start-litellm.sh"
+    echo "  To run in background:  ./scripts/start-litellm.sh --bg"
+    echo ""
+}
+
 # Make scripts executable
 setup_scripts() {
-    echo -e "${BOLD}Step 6: Script Permissions${NC}"
+    echo -e "${BOLD}Step 7: Script Permissions${NC}"
 
     chmod +x scripts/*.sh 2>/dev/null || true
     echo -e "${GREEN}✓${NC} Made scripts executable"
@@ -254,7 +285,7 @@ setup_scripts() {
 
 # Create .env template
 create_env_template() {
-    echo -e "${BOLD}Step 7: Environment Template${NC}"
+    echo -e "${BOLD}Step 8: Environment Template${NC}"
 
     if [ ! -f ".env" ]; then
         cat > .env.example << 'EOF'
@@ -266,7 +297,11 @@ GITHUB_TOKEN=your_github_personal_access_token
 # Ollama (usually localhost)
 OLLAMA_HOST=http://localhost:11434
 
-# Optional: Override default models
+# LiteLLM proxy (bridges Claude Code → Ollama)
+# Start with: ./scripts/start-litellm.sh
+# ANTHROPIC_BASE_URL=http://localhost:4000
+
+# Subagent model routing (via LiteLLM gateway)
 # CLAUDE_CODE_SUBAGENT_MODEL=qwen3.5:27b
 EOF
         echo -e "${GREEN}✓${NC} Created .env.example"
@@ -320,6 +355,12 @@ verify_installation() {
         all_good=false
     fi
 
+    if command -v litellm &> /dev/null; then
+        echo -e "${GREEN}✓${NC} LiteLLM proxy"
+    else
+        echo -e "${YELLOW}⚠${NC} LiteLLM proxy (optional, for local model routing)"
+    fi
+
     echo ""
 
     if $all_good; then
@@ -350,10 +391,13 @@ print_next_steps() {
     echo "4. Edit your first task list:"
     echo "   vim AGENTS.md"
     echo ""
-    echo "5. Run your first overnight session:"
+    echo "5. Start the LiteLLM gateway (for local model routing):"
+    echo "   ./scripts/start-litellm.sh --bg"
+    echo ""
+    echo "6. Run your first overnight session:"
     echo "   ./scripts/overnight-codex.sh"
     echo ""
-    echo "6. Morning review:"
+    echo "7. Morning review:"
     echo "   claude"
     echo "   /review"
     echo ""
@@ -370,6 +414,7 @@ main() {
     install_claude
     configure_mcp
     install_ralph
+    install_litellm
     setup_scripts
     create_env_template
     verify_installation

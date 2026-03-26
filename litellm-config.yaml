@@ -1,0 +1,29 @@
+# LiteLLM Proxy Configuration
+# Routes Claude Code requests to local Ollama models
+# Start with: litellm --config litellm-config.yaml --port 4000
+
+model_list:
+  # Primary implementation model
+  - model_name: qwen3.5:27b
+    litellm_params:
+      model: ollama/qwen3.5:27b
+      api_base: http://localhost:11434
+      stream: true
+
+  # Fast autocomplete / simple edits
+  - model_name: qwen2.5-coder:32b
+    litellm_params:
+      model: ollama/qwen2.5-coder:32b
+      api_base: http://localhost:11434
+      stream: true
+
+  # Fast agentic tasks (MoE, 112 tok/s)
+  - model_name: qwen3.5:35b-a3b
+    litellm_params:
+      model: ollama/qwen3.5:35b-a3b
+      api_base: http://localhost:11434
+      stream: true
+
+general_settings:
+  master_key: "sk-local-dev"
+  drop_params: true

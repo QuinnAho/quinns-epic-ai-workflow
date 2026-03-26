@@ -1,7 +1,10 @@
 {
   "env": {
     "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "qwen3.5:27b"
+    "CLAUDE_CODE_SUBAGENT_MODEL": "qwen3.5:27b",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "qwen3.5:27b",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Qwen 3.5 27B (Local)",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Local Qwen model via LiteLLM+Ollama"
   },
   "hooks": {
     "PostToolUse": [
@@ -93,28 +96,5 @@
       "description": "Terminal execution, process management, fuzzy file search"
     }
   },
-  "model": {
-    "default": "claude-sonnet-4-20250514",
-    "architecture": "claude-opus-4-20250514",
-    "subagents": "qwen3.5:27b"
-  },
-  "localModels": {
-    "ollama": {
-      "baseUrl": "http://localhost:11434",
-      "models": {
-        "qwen3.5:27b": {
-          "description": "Implementation, test generation",
-          "contextLength": 262144
-        },
-        "qwen2.5-coder:32b": {
-          "description": "Autocomplete, simple edits",
-          "contextLength": 32768
-        },
-        "qwen3.5:35b-a3b": {
-          "description": "Fast agentic tasks (112 tok/s)",
-          "contextLength": 131072
-        }
-      }
-    }
-  }
+  "model": "claude-opus-4-20250514"
 }
