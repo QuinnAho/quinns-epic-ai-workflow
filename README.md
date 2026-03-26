@@ -6,7 +6,7 @@
 
 Think of this workflow like a factory running two shifts.
 
-The night shift (Codex, autonmous) works hard, they get a lot done. But it's dark out, they're tired, and they're cheap labor. So mistakes happen. They follow the work orders to the letter, bolt by bolt, but they won't notice if the blueprint itself was wrong.
+The night shift (Codex, autonmous) works hard, they get a lot done. But it's dark out, they're tired, and they're cheap labor, they're pretty smart but nonetheless mistakes happen. They follow the work orders to the letter, bolt by bolt, but they won't notice if the blueprint itself was wrong.
 
 The day shift (Claude, supervised) comes in each morning and inspects the work. They figure out what got done right, what got botched, and what the night crew should tackle next. They also help you tighten the blueprint before the next run. They're expensive and burn through their hours fast, so you don't want them tightening screws, you want them thinking. Architecture, judgment calls, quality checks.
 
