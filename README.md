@@ -73,7 +73,7 @@ project-root/
 
 ```powershell
 # From your project root, clone and copy workflow files:
-git clone https://github.com/yourrepo/quinns-epic-ai-workflow .ai-workflow
+git clone https://github.com/QuinnAho/quinns-epic-ai-workflow.git .ai-workflow
 
 # Copy core files to project root (AI agents look here)
 Copy-Item -Path ".ai-workflow\.claude" -Destination ".\" -Recurse
