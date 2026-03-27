@@ -48,7 +48,7 @@ Codex implements overnight while you sleep, Claude reviews in the morning.
 
 ### Start from a Doc
 ```bash
-git clone https://github.com/QuinnAho/quinns-epic-ai-workflow.git .ai-workflow
+git clone https://github.com/QuinnAho/a-day-in-an-ai-agent.git .ai-workflow
 cd .ai-workflow
 ./scripts/setup.sh --cloud-only
 claude
