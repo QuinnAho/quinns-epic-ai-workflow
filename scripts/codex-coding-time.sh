@@ -10,15 +10,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-# Configuration
-MAX_TASKS=10
-TASK_TIMEOUT=3600  # 60 minutes per task
+# Configuration (can be overridden by complexity tier)
+MAX_TASKS="${MAX_TASKS:-10}"
+TASK_TIMEOUT="${TASK_TIMEOUT:-3600}"  # 60 minutes per task
 MAX_CONSECUTIVE_FAILURES=3
 RATE_LIMIT_PAUSE=1800  # 30 minutes
 LOG_DIR=".codex-logs"
 SANDBOX_DIR="sandbox"
 SESSION_ID=$(date +%Y%m%d_%H%M%S)
 CODEX_RUN_MODEL="${CODEX_RUN_MODEL:-gpt-5.4}"
+
+# Optimization flags
+ENABLE_EARLY_TERMINATION="${ENABLE_EARLY_TERMINATION:-1}"
+SKIP_SELF_REVIEW="${SKIP_SELF_REVIEW:-0}"
 
 # Colors
 RED='\033[0;31m'
@@ -31,6 +35,56 @@ NC='\033[0m'
 mkdir -p "$LOG_DIR" "$SANDBOX_DIR"
 LOG_FILE="$LOG_DIR/session_$SESSION_ID.log"
 CODEX_LAUNCHER=(node "$PROJECT_ROOT/scripts/codex-cli.mjs")
+
+# Load game-specific config if available
+load_game_config() {
+    local game_slug=$1
+    local config_file="$SANDBOX_DIR/$game_slug/config.env"
+
+    if [ -f "$config_file" ]; then
+        source "$config_file"
+
+        # Apply complexity-based overrides
+        case "${complexity_tier:-3}" in
+            1|2)
+                CODEX_RUN_MODEL="${CODEX_RUN_MODEL_OVERRIDE:-gpt-5.4-mini}"
+                MAX_TASKS="${MAX_TASKS_OVERRIDE:-5}"
+                TASK_TIMEOUT="${TASK_TIMEOUT_OVERRIDE:-1800}"
+                SKIP_SELF_REVIEW=1
+                ;;
+            3)
+                CODEX_RUN_MODEL="${CODEX_RUN_MODEL_OVERRIDE:-gpt-5.4}"
+                MAX_TASKS="${MAX_TASKS_OVERRIDE:-8}"
+                ;;
+            4|5)
+                CODEX_RUN_MODEL="${CODEX_RUN_MODEL_OVERRIDE:-gpt-5.4}"
+                MAX_TASKS="${MAX_TASKS_OVERRIDE:-12}"
+                ;;
+        esac
+
+        log "Loaded config for $game_slug (tier ${complexity_tier:-?})"
+    fi
+}
+
+# Check if game meets acceptance criteria (early termination)
+check_early_termination() {
+    local game_slug=$1
+
+    if [ "$ENABLE_EARLY_TERMINATION" -ne 1 ]; then
+        return 1
+    fi
+
+    if [ -z "$game_slug" ]; then
+        return 1
+    fi
+
+    if node "$PROJECT_ROOT/scripts/check-game-done.mjs" "$game_slug" 2>/dev/null; then
+        log "${GREEN}Game $game_slug meets acceptance criteria - enabling early termination${NC}"
+        return 0
+    fi
+
+    return 1
+}
 
 log() {
     local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -136,12 +190,21 @@ execute_task() {
         log "Brief file: $task_brief"
     fi
 
+    # Build self-review instruction based on complexity
+    local self_review_instruction
+    if [ "$SKIP_SELF_REVIEW" -eq 1 ]; then
+        self_review_instruction="8. For this simple game, skip the subagent self-review pass to save tokens. Do a quick manual check that the code works."
+    else
+        self_review_instruction="8. Before declaring completion, perform a self-review pass. Use code_reviewer and spec_validator for non-trivial work to review the implementation against the spec, future-forward constraints, tests, and likely regressions."
+    fi
+
     # Build the Codex prompt
     local prompt="You are implementing a task from AGENTS.md.
 
 Task: $task_desc
 Spec file: $task_spec
 Brief file: ${task_brief:-not provided}
+Model: $CODEX_RUN_MODEL
 
 Instructions:
 1. Read the spec file at $task_spec if it exists. If this task is creating the spec and the file does not exist yet, create it.
@@ -151,7 +214,7 @@ Instructions:
 5. If the task is browser-visual and tests are not practical, add the smallest useful smoke check or document the limitation.
 6. Implement the minimum change that moves the game toward a more playable state.
 7. When the spec identifies likely follow-on systems, prepare the code for those future additions with light-weight seams, shared data models, or module boundaries, but do not overbuild.
-8. Before declaring completion, perform a self-review pass. Use code_reviewer and spec_validator for non-trivial work to review the implementation against the spec, future-forward constraints, tests, and likely regressions.
+$self_review_instruction
 9. Fix any material findings from that self-review, or document the remaining limitation clearly in STATUS.md if it is intentionally deferred.
 10. Run relevant checks and update STATUS.md with artifact status or blocker details when useful.
 11. If the task is complete, output TASK_COMPLETE.
@@ -160,6 +223,7 @@ Instructions:
 Follow the project constitution in PROJECT.md. This repo is Codex-only. Do not wait for an external review step; perform the reviewer pass yourself before TASK_COMPLETE. Prefer browser-playable increments, delta-time-safe logic, and explicit follow-up notes.
 Unless you are editing shared workflow files, keep game-specific HTML, code, and assets inside sandbox/<game-slug>/ and follow the artifact path defined by the spec.
 When delegation helps, use the project-scoped custom agents in .codex/agents, especially spec_analyst, spec_architect, spec_developer, spec_tester, spec_validator, code_reviewer, and workflow_integrator.
+Before completing visual tasks, consult the game-ux-polish skill to ensure player experience polish: no debug artifacts, proper feedback on hits/actions, smooth camera, and clean UI.
 
 Begin by reading the available context and the spec."
 
@@ -267,6 +331,8 @@ main() {
     local tasks_blocked=0
     local consecutive_failures=0
 
+    local current_game_slug=""
+
     for ((i=1; i<=MAX_TASKS; i++)); do
         log ""
         log "${BLUE}--- Task iteration $i of $MAX_TASKS ---${NC}"
@@ -285,7 +351,21 @@ main() {
         local task_slug=$(get_task_slug "$task_spec" || true)
         local task_brief=$(get_task_brief "$task_spec" || true)
 
+        # Load game-specific config on first task or when game changes
+        if [ -n "$task_slug" ] && [ "$task_slug" != "$current_game_slug" ]; then
+            current_game_slug="$task_slug"
+            load_game_config "$task_slug"
+        fi
+
         log "Found task: $task_desc"
+
+        # Check for early termination (game already meets criteria)
+        if [ "$tasks_completed" -ge 1 ] && check_early_termination "$task_slug"; then
+            log "${GREEN}Early termination: $task_slug is playable, skipping remaining tasks${NC}"
+            log_status "EARLY_TERMINATION: Game meets acceptance criteria"
+            # Mark remaining tasks as skipped (optional)
+            break
+        fi
 
         # Execute task
         local result

@@ -17,10 +17,16 @@ cd "$PROJECT_ROOT"
 SPEC_DIR="$PROJECT_ROOT/specs"
 SANDBOX_DIR="$PROJECT_ROOT/sandbox"
 CODEX_LAUNCHER=(node "$PROJECT_ROOT/scripts/codex-cli.mjs")
+
+# Default config (will be overridden by complexity classifier)
 CODEX_SPEC_MODEL="${CODEX_SPEC_MODEL:-gpt-5.4}"
 CODEX_SPEC_TIMEOUT="${CODEX_SPEC_TIMEOUT:-1200}"
 CODEX_SPEC_MAX_REPEAT_ERRORS="${CODEX_SPEC_MAX_REPEAT_ERRORS:-2}"
 CODEX_SPEC_MAX_QUESTIONS="${CODEX_SPEC_MAX_QUESTIONS:-3}"
+
+# Optimization flags
+USE_COMPLEXITY_CLASSIFIER="${USE_COMPLEXITY_CLASSIFIER:-1}"
+GAME_COMPLEXITY_TIER="${GAME_COMPLEXITY_TIER:-0}"  # 0 = auto-detect
 
 usage() {
     echo "Usage:"
@@ -35,6 +41,61 @@ usage() {
 
 slugify() {
     echo "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//' | cut -c1-48
+}
+
+# Classify game complexity and set optimal config
+classify_and_configure() {
+    local idea="$1"
+
+    if [ "$USE_COMPLEXITY_CLASSIFIER" -ne 1 ]; then
+        echo "Skipping complexity classification (disabled)"
+        return 0
+    fi
+
+    if [ "$GAME_COMPLEXITY_TIER" -ne 0 ]; then
+        echo "Using preset complexity tier: $GAME_COMPLEXITY_TIER"
+        return 0
+    fi
+
+    echo "Analyzing game complexity..."
+    local config_json
+    config_json=$(node "$PROJECT_ROOT/scripts/classify-game-complexity.mjs" --json "$idea" 2>/dev/null || echo '{}')
+
+    if [ "$config_json" = "{}" ]; then
+        echo "Warning: Could not classify complexity, using defaults"
+        return 0
+    fi
+
+    # Parse JSON config and set variables
+    GAME_COMPLEXITY_TIER=$(echo "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).config.tier" 2>/dev/null || echo 3)
+    local rec_model=$(echo "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).config.specModel" 2>/dev/null || echo "gpt-5.4")
+    local rec_timeout=$(echo "$config_json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).config.specTimeout" 2>/dev/null || echo 1200)
+
+    # Only override if not already set via environment
+    if [ -z "${CODEX_SPEC_MODEL_OVERRIDE:-}" ]; then
+        CODEX_SPEC_MODEL="$rec_model"
+    fi
+    if [ -z "${CODEX_SPEC_TIMEOUT_OVERRIDE:-}" ]; then
+        CODEX_SPEC_TIMEOUT="$rec_timeout"
+    fi
+
+    local tier_name
+    case "$GAME_COMPLEXITY_TIER" in
+        1) tier_name="simple" ;;
+        2) tier_name="basic" ;;
+        3) tier_name="moderate" ;;
+        4) tier_name="complex" ;;
+        5) tier_name="ambitious" ;;
+        *) tier_name="unknown" ;;
+    esac
+
+    echo "Complexity: Tier $GAME_COMPLEXITY_TIER ($tier_name)"
+    echo "Using model: $CODEX_SPEC_MODEL, timeout: ${CODEX_SPEC_TIMEOUT}s"
+
+    # Store config for later stages
+    export GAME_COMPLEXITY_TIER
+    export CODEX_SPEC_MODEL
+    export CODEX_SPEC_TIMEOUT
 }
 
 titleize_slug() {
@@ -526,6 +587,12 @@ fi
 refresh_paths
 mkdir -p "$SPEC_DIR" "$SANDBOX_DIR" "$GAME_DIR"
 
+# Classify complexity and set optimal configuration
+classify_and_configure "$IDEA_TEXT"
+
+# Save complexity tier for later stages
+echo "complexity_tier=$GAME_COMPLEXITY_TIER" >> "$GAME_DIR/config.env"
+
 if [ -f "$SPEC_PATH" ] && [ "$FORCE" -ne 1 ]; then
     echo "Error: spec already exists at $SPEC_PATH"
     echo "Re-run with --force to overwrite it."
@@ -556,26 +623,30 @@ Game name: $GAME_NAME
 Primary intake file: $INTAKE_PATH
 Original brief file: $IDEA_RECORD_PATH
 Clarifications file: $CLARIFICATIONS_PATH
+Complexity tier: $GAME_COMPLEXITY_TIER/5
 
 Write the final spec to $SPEC_PATH.
 
 Instructions:
 1. Read PROJECT.md, AGENTS.md, STATUS.md, specs/_template.md, and the intake files at $INTAKE_PATH, $IDEA_RECORD_PATH, and $CLARIFICATIONS_PATH if they exist.
-2. Use the repository skills game-spec-generator, game-movement-systems, game-character-systems, game-environment-systems, game-gameplay-systems, game-ui-hud-systems, game-collision-systems, and game-ai-systems when relevant.
-3. For simple games such as Snake, Pong, Breakout, Flappy Bird, or other single-loop arcade games, do not use subagents. Write the spec directly in one pass.
-4. For more complex games, use at most one refinement pass total. If you use spec_analyst or spec_architect, do one narrow pass and then write the final spec. Do not loop.
-5. If the same tool, path, sandbox, or project-boundary failure happens twice, stop immediately and output BLOCKED: repeated tool failure.
-6. Do not retry writes outside the repo root. The target spec path is inside this project.
-7. The game workspace for this idea is $GAME_DIR_REL.
-8. The default v0 browser artifact path should be $TARGET_ARTIFACT_REL unless the spec has a strong reason to use a nested entry path such as $GAME_DIR_REL/public/index.html or $GAME_DIR_REL/dist/index.html.
-9. Keep all game-specific code, assets, and generated files inside $GAME_DIR_REL. Only shared workflow files should live outside that folder.
-10. Baseline test files already exist in $GAME_DIR_REL/tests/. The spec should treat those as the default validation harness and expand them as pure logic is extracted.
-11. Produce an implementation-ready v0 spec for a browser-playable game, not a vague design note.
-12. Be explicit about workspace path, artifact path, run method, controls, camera, world structure, systems, failure modes, acceptance criteria, validation steps, and thin task breakdown.
-13. Keep the scope realistic for autonomous implementation. Prefer a stable playable core over feature sprawl.
-14. Treat the combined intake in $INTAKE_PATH as the source of truth. Keep the implemented game aligned with the user's name, brief, and clarification answers.
-15. Save the spec to $SPEC_PATH and overwrite any existing contents there if needed.
-16. Output TASK_COMPLETE when the spec is written.
+2. Use the repository skills game-spec-generator, game-movement-systems, game-character-systems, game-environment-systems, game-gameplay-systems, game-ui-hud-systems, game-collision-systems, game-ai-systems, game-ux-polish, and library-selector when relevant.
+3. Use the library-selector skill to determine if any CDN libraries should be included. For tier 1-2 games, prefer vanilla JS. For tier 3+ games, consider frameworks only if they genuinely reduce complexity.
+4. For simple games (tier 1-2: Snake, Pong, Breakout, Flappy Bird), do not use subagents. Write the spec directly in one pass.
+5. For moderate games (tier 3), use at most one refinement pass total. If you use spec_analyst or spec_architect, do one narrow pass and then write the final spec. Do not loop.
+6. For complex games (tier 4-5), you may use spec_analyst and spec_architect once each, but keep iteration minimal. Prefer a stable v0 over comprehensive feature coverage.
+7. If the same tool, path, sandbox, or project-boundary failure happens twice, stop immediately and output BLOCKED: repeated tool failure.
+8. Do not retry writes outside the repo root. The target spec path is inside this project.
+9. The game workspace for this idea is $GAME_DIR_REL.
+10. The default v0 browser artifact path should be $TARGET_ARTIFACT_REL unless the spec has a strong reason to use a nested entry path such as $GAME_DIR_REL/public/index.html or $GAME_DIR_REL/dist/index.html.
+11. Keep all game-specific code, assets, and generated files inside $GAME_DIR_REL. Only shared workflow files should live outside that folder.
+12. Baseline test files already exist in $GAME_DIR_REL/tests/. The spec should treat those as the default validation harness and expand them as pure logic is extracted.
+13. Produce an implementation-ready v0 spec for a browser-playable game, not a vague design note.
+14. Be explicit about workspace path, artifact path, run method, controls, camera, world structure, systems, failure modes, acceptance criteria, validation steps, and thin task breakdown.
+15. Keep the scope realistic for autonomous implementation. Prefer a stable playable core over feature sprawl.
+16. Treat the combined intake in $INTAKE_PATH as the source of truth. Keep the implemented game aligned with the user's name, brief, and clarification answers.
+17. If any external libraries are recommended, include them in the Technical Architecture section with pinned CDN URLs.
+18. Save the spec to $SPEC_PATH and overwrite any existing contents there if needed.
+19. Output TASK_COMPLETE when the spec is written.
 EOF
 )
 
