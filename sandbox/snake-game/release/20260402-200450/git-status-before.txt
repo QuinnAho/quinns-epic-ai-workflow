@@ -1,0 +1,7 @@
+## ai-game-gen-experiment
+ M PROJECT.md
+ M README.md
+ M sandbox/README.md
+?? scripts/finalize-game-release.mjs
+?? scripts/finalize-game-release.ps1
+?? scripts/finalize-game-release.sh

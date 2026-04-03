@@ -15,13 +15,13 @@ The active loop is:
 
 1. Run `./scripts/generate-game.sh` to collect the game name and brief
 2. Let the same script gather a few Codex-generated clarification answers when they materially improve the first playable spec
-3. Generate or refine a spec with `./scripts/generate-game.sh`, which also records `sandbox/<game-slug>/baseline-ref.txt` and scaffolds baseline tests in `sandbox/<game-slug>/tests/`
+3. Generate or refine a spec with `./scripts/generate-game.sh`, which also scaffolds baseline tests in `sandbox/<game-slug>/tests/`
 4. Start from the seeded starter queue in `AGENTS.md`
 5. Run `./scripts/codex-coding-time.sh`
 6. Serve or inspect the resulting browser artifact with `./scripts/run-game.sh`
 7. Record failures in `STATUS.md`
 8. Queue targeted repairs and run again
-9. When the game is finished, run `node ./scripts/finalize-game-release.mjs <game-slug> --apply` to archive the trail and restore everything outside that game workspace to the recorded baseline commit
+9. When the game is finished, run `node ./scripts/finalize-game-release.mjs <game-slug> --apply` to archive the trail and reset everything outside that game workspace to `HEAD`
 
 ## Mission Priorities
 
@@ -49,16 +49,14 @@ The active loop is:
 - `specs/`: implementation specs for generated and repaired games
 - `sandbox/`: generated game workspaces, one directory per game slug
 - `sandbox/<game-slug>/idea.txt`: original per-game brief collected by the generator
-- `sandbox/<game-slug>/baseline-ref.txt`: baseline commit captured when the game started
 - `sandbox/<game-slug>/clarifications.txt`: user answers to Codex-generated intake questions
 - `sandbox/<game-slug>/intake.md`: combined intake source used during spec generation
 - `sandbox/<game-slug>/tests/`: reusable built-in test harness for smoke checks and extracted game logic
-- `sandbox/<game-slug>/release/`: archived release bundle for a finished game
 - `scripts/codex-cli.mjs`: repo-local Codex CLI launcher for stable automation entry on Windows and Unix-like environments
 - `scripts/generate-game.sh`: opens a guided terminal prompt, records the brief in the sandbox workspace, gathers Codex-generated clarification answers when needed, creates a detailed implementation spec, and seeds the starter queue
 - `scripts/run-game.sh`: serves the current browser artifact locally
 - `scripts/codex-coding-time.sh`: main autonomous runner
-- `scripts/finalize-game-release.mjs`: writes a release bundle inside `sandbox/<game-slug>/release/` and restores everything outside that game workspace to the recorded baseline commit
+- `scripts/finalize-game-release.mjs`: writes a release bundle inside `sandbox/<game-slug>/release/` and restores everything outside that game workspace to git `HEAD`
 - `scripts/scaffold-game-tests.mjs`: creates baseline built-in tests for each sandboxed game
 - `scripts/run-game-tests.mjs`: runs sandbox game tests with Node's built-in test runner
 - `scripts/quality-gate.sh`: mechanical checks
@@ -186,7 +184,6 @@ Human review is not part of the active implementation loop, but the workflow mus
 - Max tasks per run: 10
 - Timeout per task: 60 minutes
 - Commit on: passing task with a runnable or improved artifact
-- Commit prefix: `<game-slug>:` for game-specific tasks when a spec slug is present
 - Stop condition: 3 consecutive failures
 
 ## Default Decision Rules
@@ -195,5 +192,4 @@ Human review is not part of the active implementation loop, but the workflow mus
 - If a spec is missing, create it only when the task explicitly calls for that
 - If the artifact is broken, fix the load path before polishing secondary systems
 - If a gameplay issue is visible but hard to automate, document it clearly and queue the repair
-
 

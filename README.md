@@ -46,12 +46,13 @@ This is deliberate. It exercises the parts of AI game generation that usually br
 ## Core Workflow
 
 1. Run `./scripts/generate-game.sh` and enter the game name and brief in the guided prompt.
-2. The script saves that brief to `sandbox/<game-slug>/idea.txt`, lets Codex propose a few high-value clarification questions, stores the answers, scaffolds `sandbox/<game-slug>/tests/`, and generates the detailed implementation spec.
+2. The script saves that brief to `sandbox/<game-slug>/idea.txt`, records a baseline commit in `sandbox/<game-slug>/baseline-ref.txt`, lets Codex propose a few high-value clarification questions, stores the answers, scaffolds `sandbox/<game-slug>/tests/`, and generates the detailed implementation spec.
 3. The same script seeds [AGENTS.md](./AGENTS.md) with the first starter queue for that game unless you opt out.
 4. Run `./scripts/codex-coding-time.sh`.
 5. Serve the current artifact with `./scripts/run-game.sh` and record what is broken.
 6. Convert those failures into focused follow-up tasks.
 7. Repeat until the prototype becomes a playable, deployable game.
+8. When the game is done, run `node ./scripts/finalize-game-release.mjs <game-slug> --apply` to write a release bundle inside the game's sandbox and restore everything outside that game workspace back to the recorded baseline commit.
 
 ## What "Good" Looks Like
 
@@ -76,15 +77,18 @@ A successful run should produce:
 | `specs/` | Game implementation specs used by the generator and run loop |
 | `sandbox/` | Dedicated workspace where generated games live, one folder per game slug |
 | `sandbox/<game-slug>/idea.txt` | Original game brief collected by the generator and reused by Codex during implementation |
+| `sandbox/<game-slug>/baseline-ref.txt` | Baseline commit captured when the game started so finished-game cleanup can restore the rest of the repo deterministically |
 | `sandbox/<game-slug>/clarifications.txt` | User answers to Codex-generated intake questions |
 | `sandbox/<game-slug>/intake.md` | Combined intake source used during spec generation |
 | `sandbox/<game-slug>/spec-question-run.log` | Clarification-generation CLI log for debugging repeated failures |
 | `sandbox/<game-slug>/spec-generation-run.log` | Spec-generation CLI log for debugging repeated failures |
 | `sandbox/<game-slug>/tests/` | Built-in smoke and logic test files for that specific game workspace |
+| `sandbox/<game-slug>/release/` | Archived release bundle, including the spec, status trail, and commit history for that finished game |
 | `scripts/codex-cli.mjs` | Repo-local Codex CLI launcher that resolves a working entrypoint, especially on Windows |
 | `scripts/codex-coding-time.sh` | Main autonomous Codex runner |
 | `scripts/generate-game.sh` | Opens a guided intake flow, gathers Codex-generated clarification answers, saves the intake in the sandbox, writes the spec, and seeds the first AGENTS queue |
 | `scripts/run-game.sh` | Serves the current browser artifact locally |
+| `scripts/finalize-game-release.mjs` | Creates a release bundle for one game and restores everything outside that game's sandbox back to the stored baseline commit |
 | `scripts/scaffold-game-tests.mjs` | Scaffolds baseline Node-based tests into each sandboxed game workspace |
 | `scripts/run-game-tests.mjs` | Runs sandbox game tests with Node's built-in test runner |
 | `scripts/quality-gate.sh` | Mechanical quality checks |
@@ -94,7 +98,7 @@ A successful run should produce:
 If you are working on this branch, start here:
 
 1. Run `./scripts/generate-game.sh`.
-   The generator walks through a guided prompt, reserves `sandbox/<game-slug>/` for that game's files, stores the original brief there, asks a few Codex-generated clarification questions when useful, and scaffolds baseline tests.
+   The generator walks through a guided prompt, reserves `sandbox/<game-slug>/` for that game's files, stores the original brief there, captures the baseline repo commit in `sandbox/<game-slug>/baseline-ref.txt`, asks a few Codex-generated clarification questions when useful, and scaffolds baseline tests.
    It also keeps the intake cheap: clarification questions are capped, simple games should spec in one pass, and repeated tool/path failures cause the spec run to stop.
 2. Review the generated spec and seeded [AGENTS.md](./AGENTS.md) queue.
 3. Run `./scripts/codex-coding-time.sh`.
@@ -123,3 +127,6 @@ Current script defaults:
 - `CODEX_RUN_MODEL=gpt-5.4`
 
 You can override either environment variable if your Codex account exposes a different supported model name.
+
+
+
