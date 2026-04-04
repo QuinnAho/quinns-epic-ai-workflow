@@ -1,0 +1,10 @@
+# Game Intake
+
+## Game Name
+dungeon baseline-v1
+
+## Original Brief
+Build a 3D first-person dungeon game in a single HTML file using Three.js. The player explores interconnected rooms using WASD + mouse look with pointer lock. Rooms are connected by corridors. The dungeon has torch lighting with flickering point lights and fog. The player has health and a simple attack (click to swing). Enemies patrol rooms and chase the player when in range. Collision detection prevents the player and enemies from walking through walls. There's a 2D minimap overlay in the corner showing rooms, the player position, and enemy positions. The player collects keys to unlock doors. Include a HUD showing health and key count.
+
+## Clarifications
+No clarification questions were collected.

@@ -6,9 +6,9 @@
 
 ## Last Updated
 <!-- Codex updates this automatically -->
-- **Timestamp**: not started
-- **Session ID**: none
-- **Total runtime**: 0 minutes
+- **Timestamp**: 2026-04-03 23:07:23
+- **Session ID**: 20260403_212038
+- **Total runtime**: 107 minutes
 
 ---
 
@@ -19,7 +19,7 @@
 
 | Task | Commit | Tests | Notes |
 |------|--------|-------|-------|
-| (none yet) | - | - | - |
+| Generate the first playable prototype for dungeon-baseline-v1 | not committed | PASS | Normalized the spec and queue, created a single-file Three.js dungeon artifact, and replaced the placeholder sandbox tests with blueprint-aware checks. |
 
 ### Tasks Blocked
 <!-- Tasks that couldn't be completed -->
@@ -31,41 +31,46 @@
 ### Tasks Remaining
 <!-- Tasks not attempted due to time/rate limits -->
 
-- Fill from `AGENTS.md` for the active game
+- Playtest and log the first failure inventory for `dungeon-baseline-v1`
+- Fix the highest-leverage issue from the first `dungeon-baseline-v1` playtest
 
 ---
 
 ## Artifact Checkpoint
 
-- **Entry file**: not recorded
-- **Launch command**: not recorded
-- **Last known result**: No active game checkpoint recorded
-- **Notes**: Update this section after the next meaningful task or playtest pass.
+- **Entry file**: `sandbox/dungeon-baseline-v1/index.html`
+- **Launch command**: `./scripts/run-game.sh sandbox/dungeon-baseline-v1/index.html`
+- **Last known result**: First playable prototype created. `node scripts/run-game-tests.mjs` passed and `./scripts/quality-gate.sh` passed with warnings on 2026-04-03.
+- **Notes**: The artifact now uses one embedded dungeon blueprint for geometry, collision, doors, keys, enemy spawns, and minimap rendering. Manual browser playtest is still needed for pointer lock feel and visible combat/camera tuning.
 
 ## Observed Game Issues
 
-- **Movement / Camera**: No active game checkpoint recorded.
-- **Collision / World**: No active game checkpoint recorded.
-- **Enemies / AI**: No active game checkpoint recorded.
-- **HUD / Minimap**: No active game checkpoint recorded.
-- **Performance / Memory**: No active game checkpoint recorded.
-- **Polish / Feel**: No active game checkpoint recorded.
+- **Movement / Camera**: First-person WASD + mouse look and pointer-lock pause/resume flow are implemented. Browser feel is still unverified in this session.
+- **Movement / Camera**: First-person WASD + mouse look and pointer-lock pause/resume flow are implemented. The reported inverted `W`/`S` movement bug was fixed on 2026-04-03 by switching movement alignment to the actual camera forward vector.
+- **Collision / World**: Grid-based wall and wide-door collision are implemented from the shared blueprint. Corner feel still needs manual browser validation.
+- **Enemies / AI**: Patrol, BFS chase, melee contact damage, death, and minimap sync are implemented. Readability and corner behavior still need a real playtest.
+- **HUD / Minimap**: Health, keys, prompts, overlay states, and minimap all update from live game state. HUD legibility over real gameplay still needs a browser pass.
+- **Performance / Memory**: Compact dungeon scope with shared materials/geometries is in place. Frame time and browser memory behavior are still unmeasured.
+- **Polish / Feel**: Attack arc, damage flash, screen shake, pickup feedback, and door-unlock feedback are present. Tuning is likely after the first playtest.
 
 ---
 
 ## Quality Gate Results
 
 ### Mechanical Gates (Last Run)
-- [ ] Tests pass
+- [x] Tests pass
 - [ ] Linter clean
 - [ ] Type checking passes
 - [ ] Coverage threshold met
-- [ ] No secrets detected
+- [x] No secrets detected
 
 ### Issues Detected
 <!-- Any warnings or issues from quality gates -->
 
-- No active quality-gate results recorded.
+- `node scripts/run-game-tests.mjs` passed.
+- `./scripts/quality-gate.sh` passed with warnings.
+- Warning only: no npm project was present for lint/security audit, and no `tsconfig.json` was present for type checking.
+- Running `./scripts/quality-gate.sh` required leaving the default sandbox because Git Bash could not create a signal pipe under the restricted environment.
 
 ---
 
@@ -78,10 +83,10 @@ git log --oneline --since="12 hours ago"
 ```
 
 ### Recommended Follow-Up Order
-1. Run `./scripts/generate-game.sh` for the next game
-2. Review the generated spec and seeded queue in `AGENTS.md`
-3. Run `./scripts/codex-coding-time.sh`
-4. Record the first real artifact checkpoint and follow-up tasks
+1. Run `./scripts/run-game.sh sandbox/dungeon-baseline-v1/index.html`
+2. Browser-playtest pointer lock, movement, attack timing, key-door flow, enemy chase, minimap sync, and restart flow
+3. Record grouped failures in `STATUS.md`
+4. Fix the highest-leverage gameplay blocker from that playtest
 
 ### Questions For Human
 <!-- Codex may leave questions here that require human judgment -->
@@ -93,8 +98,8 @@ git log --oneline --since="12 hours ago"
 ## Metrics
 
 ### This Session
-- Tasks attempted: 0
-- Tasks completed: 0
+- Tasks attempted: 1
+- Tasks completed: 1
 - Tasks blocked: 0
 - Total commits: 0
 - Tokens used: 0
@@ -117,6 +122,14 @@ git log --oneline --since="12 hours ago"
 [YYYY-MM-DD HH:MM] Task X completed (commit abc123)
 [YYYY-MM-DD HH:MM] Task Y blocked: reason
 [YYYY-MM-DD HH:MM] Session ended
+[2026-04-03 16:26] Diagnosed spec-generation apply_patch write failures as likely patch-shape/new-file-mode issues, not a missing specs directory; updated launch prompts and repeat-error matching.
+[2026-04-03 16:33] Changed Codex runners so retryable in-repo tool failures get a bounded repair retry instead of immediately being treated like hard blockers; hard-stop logic now targets boundary, approval, and access-denied failures.
 ```
 
 [YYYY-MM-DD HH:MM] Start the next run here
+
+[2026-04-03 21:20:43] Session 20260403_212038 started
+[2026-04-03 23:07] Normalized specs/dungeon-baseline-v1.md and the active AGENTS queue to the dungeon-baseline-v1 workspace.
+[2026-04-03 23:07] Built sandbox/dungeon-baseline-v1/index.html as a single-file Three.js first-person dungeon prototype with shared blueprint-driven geometry, collision, doors, keys, enemies, and minimap.
+[2026-04-03 23:07] Replaced the placeholder dungeon test with blueprint-aware progression and patrol checks; run-game-tests and quality-gate passed.
+[2026-04-03 23:11] Fixed inverted forward/back movement by deriving player movement from the camera world direction instead of the previous sign-flipped yaw basis; run-game-tests passed again.

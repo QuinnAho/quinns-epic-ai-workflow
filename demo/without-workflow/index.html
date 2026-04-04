@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dungeon Baseline</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0b0f;
+      --panel: rgba(8, 10, 15, 0.84);
+      --panel-strong: rgba(8, 10, 15, 0.94);
+      --border: rgba(255, 218, 169, 0.18);
+      --accent: #ffb34d;
+      --text: #f4ead9;
+      --muted: #b9ad9a;
+      --shadow: rgba(0, 0, 0, 0.38);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top, rgba(95, 55, 17, 0.28), transparent 36%),
+        linear-gradient(180deg, #13161d 0%, #050608 100%);
+      color: var(--text);
+      font-family: Verdana, Geneva, sans-serif;
+    }
+
+    canvas { display: block; }
+
+    #ui-root {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 14px;
+      box-shadow: 0 16px 40px var(--shadow);
+      backdrop-filter: blur(6px);
+    }
+
+    #hud {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: min(290px, calc(100vw - 32px));
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .hud-block { padding: 12px 14px; }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #efd8b1;
+    }
+
+    #health-bar {
+      width: 100%;
+      height: 14px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    #health-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #a31720, #ff6c5e);
+      transition: width 100ms linear;
+    }
+
+    #metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .metric span:first-child {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .metric strong { font-size: 21px; }
+
+    #status-text {
+      min-height: 20px;
+      font-size: 13px;
+      color: #f0c98f;
+    }
+
+    #minimap-shell {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: min(280px, 32vw);
+    }
+
+    #minimap-card { padding: 12px; background: var(--panel-strong); }
+    #minimap {
+      width: 100%;
+      aspect-ratio: 1;
+      display: block;
+      border-radius: 12px;
+      background:
+        radial-gradient(circle at center, rgba(255, 172, 74, 0.08), rgba(5, 8, 11, 0.92)),
+        linear-gradient(180deg, rgba(8, 10, 15, 0.98), rgba(3, 4, 7, 0.98));
+    }
+
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 22px;
+      height: 22px;
+      transform: translate(-50%, -50%);
+      opacity: 0.85;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(255, 232, 196, 0.8);
+      box-shadow: 0 0 12px rgba(255, 166, 71, 0.35);
+    }
+
+    #crosshair::before { top: 10px; left: 0; width: 22px; height: 2px; }
+    #crosshair::after { top: 0; left: 10px; width: 2px; height: 22px; }
+
+    #attack-flash,
+    #hit-overlay {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 100ms linear;
+    }
+
+    #attack-flash.active {
+      opacity: 1;
+      background:
+        radial-gradient(circle at center, rgba(255, 176, 76, 0.16), transparent 34%),
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.05), transparent 56%);
+    }
+
+    #hit-overlay.active {
+      opacity: 1;
+      background: radial-gradient(circle at center, transparent 42%, rgba(198, 31, 30, 0.35));
+    }
+
+    #reticle-tip {
+      position: absolute;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(7, 8, 10, 0.72);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e8d7b6;
+      opacity: 0;
+      transition: opacity 100ms ease;
+    }
+
+    #reticle-tip.visible { opacity: 1; }
+
+    #center-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(520px, calc(100vw - 32px));
+      padding: 24px 26px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(19, 17, 15, 0.94), rgba(7, 8, 12, 0.96));
+      box-shadow: 0 24px 80px var(--shadow);
+      text-align: center;
+      pointer-events: auto;
+      transition: opacity 180ms ease;
+    }
+
+    #center-message.hidden { opacity: 0; visibility: hidden; }
+    #center-message h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 5vw, 40px);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #ffd79a;
+    }
+
+    #center-message p { margin: 8px 0; line-height: 1.5; color: var(--muted); }
+    #center-message button {
+      margin-top: 16px;
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 201, 121, 0.4);
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ab5e22, #7e3d12);
+      color: #fff1d2;
+      font: inherit;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    @media (max-width: 820px) {
+      #hud { top: 12px; left: 12px; width: calc(100vw - 24px); }
+      #minimap-shell { top: auto; bottom: 12px; right: 12px; width: min(220px, 42vw); }
+      #center-message { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="ui-root">
+    <div id="hud">
+      <div class="card hud-block">
+        <div class="label-row"><span>Vitals</span><span id="health-label">100 / 100</span></div>
+        <div id="health-bar"><div id="health-fill"></div></div>
+      </div>
+      <div class="card hud-block">
+        <div id="metrics">
+          <div class="metric"><span>Keys</span><strong id="key-count">0</strong></div>
+          <div class="metric"><span>Enemies</span><strong id="enemy-count">0</strong></div>
+        </div>
+      </div>
+      <div class="card hud-block">
+        <div class="label-row"><span>Status</span></div>
+        <div id="status-text">Click begin, then click the scene to lock the cursor.</div>
+      </div>
+    </div>
+
+    <div id="minimap-shell">
+      <div id="minimap-card" class="card">
+        <div class="label-row"><span>Dungeon Map</span></div>
+        <canvas id="minimap" width="256" height="256"></canvas>
+      </div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="attack-flash"></div>
+    <div id="hit-overlay"></div>
+    <div id="reticle-tip">Door requires a key</div>
+
+    <div id="center-message">
+      <h1>Dungeon Baseline</h1>
+      <p>WASD moves. Mouse looks. Click attacks. Explore the rooms, collect keys, unlock doors, and survive the patrols.</p>
+      <p>Pointer lock is required for mouse look.</p>
+      <button id="start-button" type="button">Begin Descent</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
+
+    const WORLD = {
+      wallHeight: 3.4,
+      wallThickness: 0.55,
+      corridorHalfWidth: 1.8,
+      playerHeight: 1.7,
+      playerRadius: 0.35,
+      enemyRadius: 0.4,
+      doorDepth: 0.3,
+      attackRange: 2.1,
+      fogNear: 4,
+      fogFar: 34,
+    };
+
+    const ROOM_LAYOUT = [
+      { id: "entrance", x: 0, z: 0, w: 12, d: 12, doors: ["north", "east"] },
+      { id: "forge", x: 18, z: 0, w: 12, d: 12, doors: ["west", "north"] },
+      { id: "library", x: 0, z: -18, w: 12, d: 12, doors: ["south", "east"] },
+      { id: "vault", x: 18, z: -18, w: 12, d: 12, doors: ["south", "west"] },
+    ];
+
+    const CONNECTIONS = [
+      { a: "entrance", b: "forge", axis: "x", locked: false },
+      { a: "entrance", b: "library", axis: "z", locked: true },
+      { a: "forge", b: "vault", axis: "z", locked: true },
+      { a: "library", b: "vault", axis: "x", locked: false },
+    ];
+
+    const KEY_SPAWNS = [
+      { roomId: "forge", x: 2.5, z: -2.25 },
+      { roomId: "library", x: -1.75, z: 2.2 },
+    ];
+
+    const ENEMY_SPAWNS = [
+      { roomId: "forge", x: -2.1, z: 2.0 },
+      { roomId: "library", x: 1.9, z: -1.4 },
+      { roomId: "vault", x: 0.0, z: 0.0 },
+      { roomId: "vault", x: 2.4, z: 2.6 },
+    ];
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x08090b);
+    scene.fog = new THREE.Fog(0x08090b, WORLD.fogNear, WORLD.fogFar);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const clock = new THREE.Clock();
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    const playerYaw = new THREE.Object3D();
+    const playerPitch = new THREE.Object3D();
+    playerYaw.add(playerPitch);
+    playerPitch.add(camera);
+    scene.add(playerYaw);
+
+    const ui = {
+      healthFill: document.getElementById("health-fill"),
+      healthLabel: document.getElementById("health-label"),
+      keyCount: document.getElementById("key-count"),
+      enemyCount: document.getElementById("enemy-count"),
+      statusText: document.getElementById("status-text"),
+      centerMessage: document.getElementById("center-message"),
+      startButton: document.getElementById("start-button"),
+      attackFlash: document.getElementById("attack-flash"),
+      hitOverlay: document.getElementById("hit-overlay"),
+      reticleTip: document.getElementById("reticle-tip"),
+      minimap: document.getElementById("minimap"),
+      minimapCtx: document.getElementById("minimap").getContext("2d"),
+    };
+
+    const state = {
+      started: false,
+      gameOver: false,
+      victory: false,
+      pointerLocked: false,
+      moveForward: false,
+      moveBackward: false,
+      moveLeft: false,
+      moveRight: false,
+      canAttackAt: 0,
+      attackFlashUntil: 0,
+      hurtFlashUntil: 0,
+      reticleTipUntil: 0,
+      health: 100,
+      maxHealth: 100,
+      keys: 0,
+      position: new THREE.Vector3(0, WORLD.playerHeight, 0),
+      velocity: new THREE.Vector3(),
+      bobTime: 0,
+      mouseSensitivity: 0.0024,
+      movementSpeed: 5.5,
+      rooms: [],
+      corridors: [],
+      collisionRects: [],
+      doors: [],
+      keysInWorld: [],
+      enemies: [],
+      lights: [],
+      exitDoor: null,
+    };
+
+    const ambient = new THREE.HemisphereLight(0xa1b8d6, 0x19120c, 0.34);
+    scene.add(ambient);
+
+    const moon = new THREE.DirectionalLight(0x6c87a7, 0.26);
+    moon.position.set(-12, 18, 8);
+    scene.add(moon);
+
+    function makeNoiseTexture(base, accent) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 160; i++) {
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = 0.02 + Math.random() * 0.08;
+        ctx.beginPath();
+        ctx.arc(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      return texture;
+    }
+
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      map: makeNoiseTexture("#383126", "#ffffff"),
+      color: 0x76624b,
+      roughness: 0.88,
+      metalness: 0.06,
+    });
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      map: makeNoiseTexture("#24201b", "#b28a57"),
+      color: 0x5a4d3f,
+      roughness: 0.94,
+      metalness: 0.02,
+    });
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0x2c2825, roughness: 0.95 });
+    const corridorMaterial = new THREE.MeshStandardMaterial({ color: 0x614f3c, roughness: 0.92 });
+    const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x5b2b16, roughness: 0.7, metalness: 0.12 });
+    const keyMaterial = new THREE.MeshStandardMaterial({ color: 0xe2b44a, emissive: 0x3d2700, roughness: 0.3, metalness: 0.75 });
+    const enemyMaterial = new THREE.MeshStandardMaterial({ color: 0x9f3b38, emissive: 0x210706, roughness: 0.86, metalness: 0.08 });
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function getRoomById(roomId) { return state.rooms.find((room) => room.id === roomId); }
+    function setStatus(text) { ui.statusText.textContent = text; }
+    function showTip(text) { ui.reticleTip.textContent = text; state.reticleTipUntil = performance.now() + 900; }
+    function isDoorBlocking(door) { return !door.unlocked || door.openAmount < 0.96; }
+
+    function createFloorAndCeiling(x, z, w, d, material) {
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, d), material);
+      floor.position.set(x, -0.09, z);
+      floor.receiveShadow = true;
+      worldGroup.add(floor);
+
+      const ceiling = new THREE.Mesh(new THREE.BoxGeometry(w, 0.18, d), ceilingMaterial);
+      ceiling.position.set(x, WORLD.wallHeight + 0.09, z);
+      ceiling.receiveShadow = true;
+      worldGroup.add(ceiling);
+    }
+
+    function addCollisionRect(x, z, halfW, halfD, type, data = null) {
+      state.collisionRects.push({ x, z, halfW, halfD, type, data });
+    }
+
+    function addWallSegment(x, y, z, w, h, d) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMaterial);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      worldGroup.add(mesh);
+      addCollisionRect(x, z, w / 2, d / 2, "wall");
+    }
+
+    function createTorch(x, z, y = 1.9) {
+      const holder = new THREE.Group();
+      const bracket = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.55, 8),
+        new THREE.MeshStandardMaterial({ color: 0x473325, roughness: 0.8, metalness: 0.25 })
+      );
+      bracket.rotation.z = Math.PI / 2;
+      holder.add(bracket);
+
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.09, 0.7, 10),
+        new THREE.MeshStandardMaterial({ color: 0x2f241f, roughness: 0.7, metalness: 0.35 })
+      );
+      stem.position.x = 0.25;
+      stem.rotation.z = Math.PI / 12;
+      holder.add(stem);
+
+      const ember = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffa652 }));
+      ember.position.set(0.38, 0.25, 0);
+      holder.add(ember);
+      holder.position.set(x, y, z);
+      worldGroup.add(holder);
+
+      const point = new THREE.PointLight(0xffa44d, 2.1, 10, 1.6);
+      point.position.set(x + 0.34, y + 0.22, z);
+      point.castShadow = true;
+      point.shadow.mapSize.set(256, 256);
+      point.shadow.bias = -0.0007;
+      scene.add(point);
+
+      state.lights.push({ light: point, baseIntensity: 2.0 + Math.random() * 0.35, phase: Math.random() * Math.PI * 2 });
+    }
+
+    function addRoom(room) {
+      const halfW = room.w / 2;
+      const halfD = room.d / 2;
+      const doorWidth = WORLD.corridorHalfWidth * 2.2;
+      const wallT = WORLD.wallThickness;
+
+      createFloorAndCeiling(room.x, room.z, room.w, room.d, floorMaterial);
+
+      const northZ = room.z - halfD;
+      const southZ = room.z + halfD;
+      const westX = room.x - halfW;
+      const eastX = room.x + halfW;
+
+      if (room.doors.includes("north")) {
+        const sideWidth = (room.w - doorWidth) / 2;
+        addWallSegment(room.x - (doorWidth / 2 + sideWidth / 2), WORLD.wallHeight / 2, northZ, sideWidth, WORLD.wallHeight, wallT);
+        addWallSegment(room.x + (doorWidth / 2 + sideWidth / 2), WORLD.wallHeight / 2, northZ, sideWidth, WORLD.wallHeight, wallT);
+      } else {
+        addWallSegment(room.x, WORLD.wallHeight / 2, northZ, room.w, WORLD.wallHeight, wallT);
+      }
+
+      if (room.doors.includes("south")) {
+        const sideWidth = (room.w - doorWidth) / 2;
+        addWallSegment(room.x - (doorWidth / 2 + sideWidth / 2), WORLD.wallHeight / 2, southZ, sideWidth, WORLD.wallHeight, wallT);
+        addWallSegment(room.x + (doorWidth / 2 + sideWidth / 2), WORLD.wallHeight / 2, southZ, sideWidth, WORLD.wallHeight, wallT);
+      } else {
+        addWallSegment(room.x, WORLD.wallHeight / 2, southZ, room.w, WORLD.wallHeight, wallT);
+      }
+
+      if (room.doors.includes("west")) {
+        const sideDepth = (room.d - doorWidth) / 2;
+        addWallSegment(westX, WORLD.wallHeight / 2, room.z - (doorWidth / 2 + sideDepth / 2), wallT, WORLD.wallHeight, sideDepth);
+        addWallSegment(westX, WORLD.wallHeight / 2, room.z + (doorWidth / 2 + sideDepth / 2), wallT, WORLD.wallHeight, sideDepth);
+      } else {
+        addWallSegment(westX, WORLD.wallHeight / 2, room.z, wallT, WORLD.wallHeight, room.d);
+      }
+
+      if (room.doors.includes("east")) {
+        const sideDepth = (room.d - doorWidth) / 2;
+        addWallSegment(eastX, WORLD.wallHeight / 2, room.z - (doorWidth / 2 + sideDepth / 2), wallT, WORLD.wallHeight, sideDepth);
+        addWallSegment(eastX, WORLD.wallHeight / 2, room.z + (doorWidth / 2 + sideDepth / 2), wallT, WORLD.wallHeight, sideDepth);
+      } else {
+        addWallSegment(eastX, WORLD.wallHeight / 2, room.z, wallT, WORLD.wallHeight, room.d);
+      }
+
+      const trim = new THREE.Mesh(
+        new THREE.RingGeometry(0.05, 0.14, 4, 1),
+        new THREE.MeshBasicMaterial({ color: 0x5f5245, side: THREE.DoubleSide })
+      );
+      trim.rotation.x = -Math.PI / 2;
+      trim.position.set(room.x, 0.02, room.z);
+      worldGroup.add(trim);
+
+      state.rooms.push(room);
+    }
+
+    function addDoor(connection, roomA, roomB) {
+      const doorWidth = WORLD.corridorHalfWidth * 1.9;
+      const doorHeight = 2.5;
+      const geometry = connection.axis === "x"
+        ? new THREE.BoxGeometry(WORLD.doorDepth, doorHeight, doorWidth)
+        : new THREE.BoxGeometry(doorWidth, doorHeight, WORLD.doorDepth);
+      const mesh = new THREE.Mesh(geometry, doorMaterial);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const x = connection.axis === "x" ? (roomA.x + roomB.x) / 2 : roomA.x;
+      const z = connection.axis === "x" ? roomA.z : (roomA.z + roomB.z) / 2;
+      mesh.position.set(x, doorHeight / 2, z);
+      worldGroup.add(mesh);
+
+      const plate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.22, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0xcfab55, roughness: 0.4, metalness: 0.8 })
+      );
+      plate.position.set(connection.axis === "x" ? 0 : 0.55, 0.15, connection.axis === "x" ? 0.55 : 0);
+      mesh.add(plate);
+
+      const door = {
+        connection,
+        mesh,
+        x,
+        z,
+        axis: connection.axis,
+        halfW: connection.axis === "x" ? WORLD.doorDepth / 2 : doorWidth / 2,
+        halfD: connection.axis === "x" ? doorWidth / 2 : WORLD.doorDepth / 2,
+        unlocked: false,
+        openAmount: 0,
+        targetOpenAmount: 0,
+      };
+
+      state.doors.push(door);
+      addCollisionRect(x, z, door.halfW, door.halfD, "door", door);
+    }
+
+    function addCorridor(connection) {
+      const roomA = getRoomById(connection.a);
+      const roomB = getRoomById(connection.b);
+      if (!roomA || !roomB) return;
+
+      const centerX = (roomA.x + roomB.x) / 2;
+      const centerZ = (roomA.z + roomB.z) / 2;
+      const length = connection.axis === "x"
+        ? Math.abs(roomA.x - roomB.x) - roomA.w
+        : Math.abs(roomA.z - roomB.z) - roomA.d;
+      const width = WORLD.corridorHalfWidth * 2;
+      const wallT = WORLD.wallThickness;
+
+      if (connection.axis === "x") {
+        createFloorAndCeiling(centerX, roomA.z, length, width, corridorMaterial);
+        addWallSegment(centerX, WORLD.wallHeight / 2, roomA.z - width / 2, length, WORLD.wallHeight, wallT);
+        addWallSegment(centerX, WORLD.wallHeight / 2, roomA.z + width / 2, length, WORLD.wallHeight, wallT);
+        createTorch(centerX - 2.8, roomA.z - 1.15);
+        createTorch(centerX + 2.8, roomA.z + 1.15);
+      } else {
+        createFloorAndCeiling(roomA.x, centerZ, width, length, corridorMaterial);
+        addWallSegment(roomA.x - width / 2, WORLD.wallHeight / 2, centerZ, wallT, WORLD.wallHeight, length);
+        addWallSegment(roomA.x + width / 2, WORLD.wallHeight / 2, centerZ, wallT, WORLD.wallHeight, length);
+        createTorch(roomA.x - 1.15, centerZ - 2.8);
+        createTorch(roomA.x + 1.15, centerZ + 2.8);
+      }
+
+      state.corridors.push(connection);
+      if (connection.locked) addDoor(connection, roomA, roomB);
+    }
+
+    function createKey(spawn) {
+      const room = getRoomById(spawn.roomId);
+      if (!room) return;
+
+      const group = new THREE.Group();
+      group.position.set(room.x + spawn.x, 0.8, room.z + spawn.z);
+
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 10, 18), keyMaterial);
+      ring.rotation.y = Math.PI / 2;
+      group.add(ring);
+
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.06), keyMaterial);
+      shaft.position.x = 0.22;
+      group.add(shaft);
+
+      const tooth1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.06), keyMaterial);
+      tooth1.position.set(0.34, -0.07, 0);
+      group.add(tooth1);
+
+      const tooth2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.06), keyMaterial);
+      tooth2.position.set(0.24, -0.06, 0);
+      group.add(tooth2);
+
+      worldGroup.add(group);
+      state.keysInWorld.push({ group, collected: false, bobOffset: Math.random() * Math.PI * 2 });
+    }
+
+    function createEnemy(spawn) {
+      const room = getRoomById(spawn.roomId);
+      if (!room) return;
+
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.0, 4, 8), enemyMaterial.clone());
+      body.castShadow = true;
+      body.receiveShadow = true;
+      body.position.y = 1.0;
+      group.add(body);
+
+      const eye = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff7e67 })
+      );
+      eye.position.set(0, 1.2, 0.29);
+      group.add(eye);
+
+      group.position.set(room.x + spawn.x, 0, room.z + spawn.z);
+      worldGroup.add(group);
+
+      state.enemies.push({
+        group,
+        body,
+        velocity: new THREE.Vector3(),
+        health: 40,
+        alive: true,
+        patrolAngle: Math.random() * Math.PI * 2,
+        attackCooldown: 0,
+      });
+    }
+
+    function buildDungeon() {
+      ROOM_LAYOUT.forEach(addRoom);
+      CONNECTIONS.forEach(addCorridor);
+      KEY_SPAWNS.forEach(createKey);
+      ENEMY_SPAWNS.forEach(createEnemy);
+
+      ROOM_LAYOUT.forEach((room) => {
+        createTorch(room.x - room.w / 2 + 0.9, room.z - room.d / 2 + 0.9);
+        createTorch(room.x + room.w / 2 - 0.9, room.z - room.d / 2 + 0.9);
+        createTorch(room.x - room.w / 2 + 0.9, room.z + room.d / 2 - 0.9);
+        createTorch(room.x + room.w / 2 - 0.9, room.z + room.d / 2 - 0.9);
+      });
+
+      const vault = getRoomById("vault");
+      if (vault) {
+        const arch = new THREE.Mesh(
+          new THREE.BoxGeometry(1.8, 2.7, 0.35),
+          new THREE.MeshStandardMaterial({ color: 0x5f6d6c, roughness: 0.55, metalness: 0.35 })
+        );
+        arch.position.set(vault.x, 1.35, vault.z - vault.d / 2 + 0.35);
+        arch.castShadow = true;
+        arch.receiveShadow = true;
+        worldGroup.add(arch);
+        state.exitDoor = { x: arch.position.x, z: arch.position.z + 0.4, radius: 1.3 };
+      }
+    }
+
+    function resolveCircleRectCollision(position, radius, rect) {
+      const closestX = clamp(position.x, rect.x - rect.halfW, rect.x + rect.halfW);
+      const closestZ = clamp(position.z, rect.z - rect.halfD, rect.z + rect.halfD);
+      const dx = position.x - closestX;
+      const dz = position.z - closestZ;
+      const distSq = dx * dx + dz * dz;
+      if (distSq >= radius * radius) return false;
+
+      if (distSq === 0) {
+        const overlapX = Math.min(Math.abs(position.x - (rect.x - rect.halfW)), Math.abs((rect.x + rect.halfW) - position.x));
+        const overlapZ = Math.min(Math.abs(position.z - (rect.z - rect.halfD)), Math.abs((rect.z + rect.halfD) - position.z));
+        if (overlapX < overlapZ) {
+          position.x += position.x < rect.x ? -(radius + overlapX) : radius + overlapX;
+        } else {
+          position.z += position.z < rect.z ? -(radius + overlapZ) : radius + overlapZ;
+        }
+        return true;
+      }
+
+      const dist = Math.sqrt(distSq);
+      const push = radius - dist;
+      position.x += (dx / dist) * push;
+      position.z += (dz / dist) * push;
+      return true;
+    }
+
+    function handleCharacterCollisions(position, radius) {
+      for (const rect of state.collisionRects) {
+        if (rect.type === "door") {
+          if (isDoorBlocking(rect.data)) resolveCircleRectCollision(position, radius, rect);
+          continue;
+        }
+        resolveCircleRectCollision(position, radius, rect);
+      }
+    }
+
+    function unlockNearbyDoor() {
+      let closest = null;
+      let closestDist = Infinity;
+      for (const door of state.doors) {
+        if (door.unlocked) continue;
+        const dist = Math.hypot(state.position.x - door.x, state.position.z - door.z);
+        if (dist < 2.1 && dist < closestDist) {
+          closest = door;
+          closestDist = dist;
+        }
+      }
+
+      if (!closest) return false;
+      if (state.keys <= 0) {
+        showTip("Door requires a key");
+        setStatus("A locked door blocks the path.");
+        return true;
+      }
+
+      state.keys -= 1;
+      closest.unlocked = true;
+      closest.targetOpenAmount = 1;
+      setStatus("A key turns in the lock. The door opens.");
+      return true;
+    }
+
+    function getMoveInput() {
+      const x = (state.moveRight ? 1 : 0) - (state.moveLeft ? 1 : 0);
+      const z = (state.moveForward ? 1 : 0) - (state.moveBackward ? 1 : 0);
+      const dir = new THREE.Vector3(x, 0, z);
+      if (dir.lengthSq() > 1) dir.normalize();
+      return dir;
+    }
+
+    function updateDoors(delta) {
+      for (const door of state.doors) {
+        if (door.unlocked) door.targetOpenAmount = 1;
+        door.openAmount = THREE.MathUtils.damp(door.openAmount, door.targetOpenAmount, 7, delta);
+        const offset = door.openAmount * 1.35;
+        if (door.axis === "x") {
+          door.mesh.position.z = door.z + offset;
+        } else {
+          door.mesh.position.x = door.x + offset;
+        }
+      }
+    }
+
+    function updatePlayer(delta, now) {
+      const input = getMoveInput();
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerYaw.quaternion);
+      forward.y = 0;
+      forward.normalize();
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(playerYaw.quaternion);
+      right.y = 0;
+      right.normalize();
+
+      const move = new THREE.Vector3();
+      move.addScaledVector(forward, input.z);
+      move.addScaledVector(right, input.x);
+      if (move.lengthSq() > 1) move.normalize();
+
+      const targetVelocity = move.multiplyScalar(state.movementSpeed);
+      state.velocity.lerp(targetVelocity, clamp(delta * 10, 0, 1));
+
+      const next = state.position.clone();
+      next.x += state.velocity.x * delta;
+      next.z += state.velocity.z * delta;
+      handleCharacterCollisions(next, WORLD.playerRadius);
+      state.position.copy(next);
+      playerYaw.position.copy(state.position);
+
+      const speed = Math.hypot(state.velocity.x, state.velocity.z);
+      state.bobTime += speed * delta * 1.6;
+      camera.position.y = speed > 0.1 ? Math.sin(state.bobTime * 8) * 0.04 : 0;
+
+      ui.attackFlash.classList.toggle("active", now < state.attackFlashUntil);
+      ui.hitOverlay.classList.toggle("active", now < state.hurtFlashUntil);
+      ui.reticleTip.classList.toggle("visible", now < state.reticleTipUntil);
+    }
+
+    function takeDamage(amount) {
+      if (state.gameOver || state.victory) return;
+      state.health = Math.max(0, state.health - amount);
+      state.hurtFlashUntil = performance.now() + 180;
+      if (state.health <= 0) endGame(false, "You were dragged down by the dungeon.");
+    }
+
+    function updateKeys(delta, now) {
+      for (const key of state.keysInWorld) {
+        if (key.collected) continue;
+        key.group.rotation.y += delta * 1.6;
+        key.group.position.y = 0.8 + Math.sin(now * 0.003 + key.bobOffset) * 0.18;
+
+        const dx = state.position.x - key.group.position.x;
+        const dz = state.position.z - key.group.position.z;
+        if (Math.hypot(dx, dz) < 1.05) {
+          key.collected = true;
+          key.group.visible = false;
+          state.keys += 1;
+          setStatus("You found a brass key.");
+        }
+      }
+    }
+
+    function updateEnemies(delta, now) {
+      const playerFlat = new THREE.Vector3(state.position.x, 0, state.position.z);
+      for (const enemy of state.enemies) {
+        if (!enemy.alive) continue;
+
+        enemy.attackCooldown = Math.max(0, enemy.attackCooldown - delta);
+        const enemyFlat = new THREE.Vector3(enemy.group.position.x, 0, enemy.group.position.z);
+        const toPlayer = new THREE.Vector3().subVectors(playerFlat, enemyFlat);
+        const distance = toPlayer.length();
+        const desired = new THREE.Vector3();
+
+        if (distance < 8.5) {
+          desired.copy(toPlayer.normalize().multiplyScalar(2.4));
+        } else {
+          enemy.patrolAngle += delta * 0.9;
+          desired.set(Math.cos(enemy.patrolAngle), 0, Math.sin(enemy.patrolAngle)).multiplyScalar(1.2);
+        }
+
+        enemy.velocity.lerp(desired, clamp(delta * 2.4, 0, 1));
+
+        const next = enemy.group.position.clone();
+        next.x += enemy.velocity.x * delta;
+        next.z += enemy.velocity.z * delta;
+        const flatNext = new THREE.Vector3(next.x, 0, next.z);
+        handleCharacterCollisions(flatNext, WORLD.enemyRadius);
+
+        const repel = new THREE.Vector2(flatNext.x - state.position.x, flatNext.z - state.position.z);
+        const playerGap = repel.length();
+        if (playerGap < WORLD.enemyRadius + WORLD.playerRadius + 0.1) {
+          repel.normalize();
+          flatNext.x = state.position.x + repel.x * (WORLD.enemyRadius + WORLD.playerRadius + 0.12);
+          flatNext.z = state.position.z + repel.y * (WORLD.enemyRadius + WORLD.playerRadius + 0.12);
+        }
+
+        enemy.group.position.x = flatNext.x;
+        enemy.group.position.z = flatNext.z;
+        if (enemy.velocity.lengthSq() > 0.02) {
+          enemy.group.rotation.y = Math.atan2(enemy.velocity.x, enemy.velocity.z);
+        }
+
+        enemy.body.position.y = 1.0 + Math.sin(now * 0.006 + enemy.group.position.x) * 0.08;
+        enemy.body.material.emissive.setHex(0x210706);
+
+        if (distance < 1.45 && enemy.attackCooldown <= 0) {
+          enemy.attackCooldown = 0.85;
+          takeDamage(12);
+          setStatus("A patrol lashes out.");
+        }
+      }
+    }
+
+    function tryAttack(now) {
+      if (!state.pointerLocked || state.gameOver || state.victory || now < state.canAttackAt) return;
+      state.canAttackAt = now + 420;
+      state.attackFlashUntil = now + 120;
+
+      const lookDir = new THREE.Vector3();
+      camera.getWorldDirection(lookDir);
+      lookDir.y = 0;
+      lookDir.normalize();
+
+      let bestEnemy = null;
+      let bestDist = Infinity;
+      for (const enemy of state.enemies) {
+        if (!enemy.alive) continue;
+        const toEnemy = new THREE.Vector3(enemy.group.position.x - state.position.x, 0, enemy.group.position.z - state.position.z);
+        const dist = toEnemy.length();
+        if (dist > WORLD.attackRange) continue;
+        toEnemy.normalize();
+        if (lookDir.dot(toEnemy) > 0.45 && dist < bestDist) {
+          bestEnemy = enemy;
+          bestDist = dist;
+        }
+      }
+
+      if (bestEnemy) {
+        bestEnemy.health -= 20;
+        bestEnemy.body.material.emissive.setHex(0x5f0c09);
+        if (bestEnemy.health <= 0) {
+          bestEnemy.alive = false;
+          bestEnemy.group.visible = false;
+          setStatus("A patrol collapses.");
+        } else {
+          setStatus("Your strike connects.");
+        }
+        return;
+      }
+
+      if (!unlockNearbyDoor()) setStatus("Steel scrapes the stale air.");
+    }
+
+    function updateLights(now) {
+      const t = now * 0.001;
+      for (const flicker of state.lights) {
+        const noise = Math.sin(t * 7 + flicker.phase) * 0.15 + Math.sin(t * 13 + flicker.phase * 1.7) * 0.08;
+        flicker.light.intensity = flicker.baseIntensity + noise;
+        flicker.light.distance = 9.2 + noise * 0.8;
+      }
+    }
+
+    function updateUI() {
+      const healthPercent = (state.health / state.maxHealth) * 100;
+      ui.healthFill.style.width = `${healthPercent}%`;
+      ui.healthLabel.textContent = `${state.health} / ${state.maxHealth}`;
+      ui.keyCount.textContent = String(state.keys);
+      ui.enemyCount.textContent = String(state.enemies.filter((enemy) => enemy.alive).length);
+    }
+
+    function checkVictory() {
+      if (!state.exitDoor || state.victory || state.gameOver) return;
+      const dist = Math.hypot(state.position.x - state.exitDoor.x, state.position.z - state.exitDoor.z);
+      if (dist < state.exitDoor.radius && state.enemies.every((enemy) => !enemy.alive)) {
+        endGame(true, "The vault stands cleared. You escape with the keys.");
+      }
+    }
+
+    function endGame(victory, text) {
+      state.victory = victory;
+      state.gameOver = true;
+      state.pointerLocked = false;
+      document.exitPointerLock?.();
+      ui.centerMessage.classList.remove("hidden");
+      ui.centerMessage.querySelector("h1").textContent = victory ? "Dungeon Cleared" : "Run Ended";
+      ui.centerMessage.querySelectorAll("p")[0].textContent = text;
+      ui.centerMessage.querySelectorAll("p")[1].textContent = "Reload the page to run again.";
+      ui.startButton.textContent = "Pointer Lock";
+      setStatus(text);
+    }
+
+    function drawMinimap() {
+      const ctx = ui.minimapCtx;
+      const w = ui.minimap.width;
+      const h = ui.minimap.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "rgba(4, 8, 11, 0.92)";
+      ctx.fillRect(0, 0, w, h);
+
+      const bounds = { minX: -10, maxX: 28, minZ: -28, maxZ: 10 };
+      const scale = Math.min((w - 24) / (bounds.maxX - bounds.minX), (h - 24) / (bounds.maxZ - bounds.minZ));
+      const offsetX = 12 - bounds.minX * scale;
+      const offsetZ = 12 - bounds.minZ * scale;
+      const mapX = (x) => x * scale + offsetX;
+      const mapZ = (z) => z * scale + offsetZ;
+
+      ctx.strokeStyle = "rgba(255, 225, 186, 0.18)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 8; i++) {
+        const t = 12 + i * ((w - 24) / 8);
+        ctx.beginPath();
+        ctx.moveTo(t, 12);
+        ctx.lineTo(t, h - 12);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(12, t);
+        ctx.lineTo(w - 12, t);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "rgba(129, 112, 84, 0.5)";
+      for (const room of state.rooms) {
+        ctx.fillRect(mapX(room.x - room.w / 2), mapZ(room.z - room.d / 2), room.w * scale, room.d * scale);
+      }
+
+      ctx.fillStyle = "rgba(104, 84, 60, 0.62)";
+      for (const corridor of state.corridors) {
+        const roomA = getRoomById(corridor.a);
+        const roomB = getRoomById(corridor.b);
+        if (!roomA || !roomB) continue;
+        if (corridor.axis === "x") {
+          const left = Math.min(roomA.x, roomB.x) + roomA.w / 2;
+          const width = Math.abs(roomA.x - roomB.x) - roomA.w;
+          ctx.fillRect(mapX(left), mapZ(roomA.z - WORLD.corridorHalfWidth), width * scale, WORLD.corridorHalfWidth * 2 * scale);
+        } else {
+          const top = Math.min(roomA.z, roomB.z) + roomA.d / 2;
+          const height = Math.abs(roomA.z - roomB.z) - roomA.d;
+          ctx.fillRect(mapX(roomA.x - WORLD.corridorHalfWidth), mapZ(top), WORLD.corridorHalfWidth * 2 * scale, height * scale);
+        }
+      }
+
+      for (const door of state.doors) {
+        ctx.fillStyle = door.unlocked ? "rgba(111, 185, 114, 0.9)" : "rgba(225, 146, 84, 0.92)";
+        ctx.beginPath();
+        ctx.arc(mapX(door.x), mapZ(door.z), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (const key of state.keysInWorld) {
+        if (key.collected) continue;
+        ctx.fillStyle = "#f0d36f";
+        ctx.beginPath();
+        ctx.arc(mapX(key.group.position.x), mapZ(key.group.position.z), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (const enemy of state.enemies) {
+        if (!enemy.alive) continue;
+        ctx.fillStyle = "#cf5b50";
+        ctx.beginPath();
+        ctx.arc(mapX(enemy.group.position.x), mapZ(enemy.group.position.z), 4.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#74d0ef";
+      ctx.beginPath();
+      ctx.arc(mapX(state.position.x), mapZ(state.position.z), 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y = 0;
+      dir.normalize();
+      ctx.strokeStyle = "#dff8ff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(mapX(state.position.x), mapZ(state.position.z));
+      ctx.lineTo(mapX(state.position.x + dir.x * 1.8), mapZ(state.position.z + dir.z * 1.8));
+      ctx.stroke();
+    }
+
+    function resetPlayer() {
+      state.position.set(0, WORLD.playerHeight, 0);
+      state.velocity.set(0, 0, 0);
+      playerYaw.position.copy(state.position);
+      playerYaw.rotation.y = 0;
+      playerPitch.rotation.x = 0;
+      camera.position.set(0, 0, 0);
+    }
+
+    function onKeyChange(event, pressed) {
+      switch (event.code) {
+        case "KeyW": state.moveForward = pressed; break;
+        case "KeyS": state.moveBackward = pressed; break;
+        case "KeyA": state.moveLeft = pressed; break;
+        case "KeyD": state.moveRight = pressed; break;
+        case "KeyE":
+          if (pressed) unlockNearbyDoor();
+          break;
+        default:
+          break;
+      }
+    }
+
+    function startGame() {
+      if (!state.started) {
+        state.started = true;
+        ui.centerMessage.classList.add("hidden");
+        setStatus("Collect both keys, open the locked doors, and clear the vault.");
+      }
+      renderer.domElement.requestPointerLock();
+    }
+
+    function handlePointerLockChange() {
+      state.pointerLocked = document.pointerLockElement === renderer.domElement;
+      if (state.started && !state.pointerLocked && !state.gameOver && !state.victory) {
+        ui.centerMessage.classList.remove("hidden");
+        ui.centerMessage.querySelector("h1").textContent = "Paused";
+        ui.centerMessage.querySelectorAll("p")[0].textContent = "Click below and then click the scene to lock the pointer again.";
+        ui.centerMessage.querySelectorAll("p")[1].textContent = "The dungeon waits while the cursor is free.";
+        ui.startButton.textContent = "Resume";
+      } else if (state.pointerLocked) {
+        ui.centerMessage.classList.add("hidden");
+        ui.startButton.textContent = "Begin Descent";
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const now = performance.now();
+
+      updateLights(now);
+      if (state.started && !state.gameOver && !state.victory) {
+        updateDoors(delta);
+        updatePlayer(delta, now);
+        updateKeys(delta, now);
+        updateEnemies(delta, now);
+        checkVictory();
+      }
+
+      updateUI();
+      drawMinimap();
+      renderer.render(scene, camera);
+    }
+
+    buildDungeon();
+    resetPlayer();
+    updateUI();
+    animate();
+
+    ui.startButton.addEventListener("click", startGame);
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener("keydown", (event) => onKeyChange(event, true));
+    window.addEventListener("keyup", (event) => onKeyChange(event, false));
+    document.addEventListener("pointerlockchange", handlePointerLockChange);
+
+    window.addEventListener("mousemove", (event) => {
+      if (!state.pointerLocked || state.gameOver || state.victory) return;
+      playerYaw.rotation.y -= event.movementX * state.mouseSensitivity;
+      playerPitch.rotation.x -= event.movementY * state.mouseSensitivity;
+      playerPitch.rotation.x = clamp(playerPitch.rotation.x, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
+    });
+
+    window.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      if (!state.pointerLocked) {
+        if (state.started && !state.gameOver && !state.victory) renderer.domElement.requestPointerLock();
+        return;
+      }
+      tryAttack(performance.now());
+    });
+
+    renderer.domElement.addEventListener("click", () => {
+      if (state.started && !state.pointerLocked && !state.gameOver && !state.victory) {
+        renderer.domElement.requestPointerLock();
+      }
+    });
+  </script>
+</body>
+</html>

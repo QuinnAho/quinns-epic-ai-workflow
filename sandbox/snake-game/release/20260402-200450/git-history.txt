@@ -1,5 +1,0 @@
-e927812 (HEAD -> ai-game-gen-experiment) feat: Generate the first playable snake game prototype
-f6af5b2 Add first playable snake prototype
-7f187e7 Add first playable snake prototype
-24587ce renamed, adjusted branding fixed rules, qwem optional
-2101be7 initial workflow push

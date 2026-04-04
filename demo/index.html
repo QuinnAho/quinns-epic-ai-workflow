@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Game Gen Workflow Demos</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-top: #101419;
+        --bg-bottom: #050608;
+        --panel: rgba(15, 18, 23, 0.82);
+        --panel-border: rgba(255, 220, 172, 0.18);
+        --text-main: #f7efe1;
+        --text-dim: #bfb4a2;
+        --accent: #f5ab4b;
+        --accent-strong: #ffd18e;
+        --shadow: rgba(0, 0, 0, 0.38);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        color: var(--text-main);
+        background:
+          radial-gradient(circle at top, rgba(245, 171, 75, 0.12), transparent 30%),
+          linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+      }
+
+      main {
+        width: min(980px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 64px 0 48px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2.4rem, 5vw, 4rem);
+        line-height: 0.95;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      p {
+        margin: 0;
+        color: var(--text-dim);
+        line-height: 1.6;
+      }
+
+      .prompt {
+        margin-top: 28px;
+        padding: 20px;
+        border: 1px solid var(--panel-border);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: 0 20px 60px var(--shadow);
+        white-space: pre-wrap;
+      }
+
+      .grid {
+        display: grid;
+        gap: 20px;
+        margin-top: 28px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .card {
+        padding: 24px;
+        border: 1px solid var(--panel-border);
+        border-radius: 20px;
+        background: var(--panel);
+        box-shadow: 0 20px 60px var(--shadow);
+      }
+
+      .eyebrow {
+        margin-bottom: 10px;
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 1.5rem;
+      }
+
+      .card p + p {
+        margin-top: 10px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 170px;
+        padding: 12px 16px;
+        border-radius: 999px;
+        color: #1a1206;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .note {
+        margin-top: 24px;
+        font-size: 0.96rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Dungeon Prompt Comparison</h1>
+      <p>
+        Two autonomous generations, one shared prompt. One run used baseline boilerplate Codex
+        alone. The other used this workflow. No manual changes were added after the prompt in
+        either case.
+      </p>
+
+      <div class="prompt">Build a 3D first-person dungeon game in a single HTML file using Three.js. The player explores interconnected rooms using WASD + mouse look with pointer lock. Rooms are connected by corridors. The dungeon has torch lighting with flickering point lights and fog. The player has health and a simple attack (click to swing). Enemies patrol rooms and chase the player when in range. Collision detection prevents the player and enemies from walking through walls. There's a 2D minimap overlay in the corner showing rooms, the player position, and enemy positions. The player collects keys to unlock doors. Include a HUD showing health and key count.</div>
+
+      <section class="grid" aria-label="Playable demos">
+        <article class="card">
+          <div class="eyebrow">Baseline</div>
+          <h2>Boilerplate Codex</h2>
+          <p>
+            Generated from the prompt without this workflow wrapped around the run.
+          </p>
+          <div class="actions">
+            <a class="button" href="./without-workflow/">Play This Version</a>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="eyebrow">Workflow</div>
+          <h2>AI Workflow Output</h2>
+          <p>
+            Generated from the same prompt through this autonomous workflow.
+          </p>
+          <p>
+            The workflow run also generated unit tests automatically.
+          </p>
+          <div class="actions">
+            <a class="button" href="./with-workflow/">Play This Version</a>
+          </div>
+        </article>
+      </section>
+
+      <p class="note">
+        Pointer lock is used in both games. Click into the page after loading to begin.
+      </p>
+    </main>
+  </body>
+</html>

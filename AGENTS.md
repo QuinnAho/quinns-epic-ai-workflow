@@ -37,17 +37,17 @@ See `PROJECT.md` for the full project constitution for this Codex-first autonomo
 
 ### Priority 1 (Current Run)
 
-1. [ ] **Generate the first playable prototype for the active game**
-   - Spec: `specs/<game-slug>.md`
+1. [x] **Generate the first playable prototype for dungeon-baseline-v1**
+   - Spec: `specs/dungeon-baseline-v1.md`
    - Acceptance criteria:
-     - [ ] Produces a local browser artifact under `sandbox/<game-slug>/` that loads without immediate crashes
-     - [ ] Implements the core v0 loop defined in `specs/<game-slug>.md`
-     - [ ] Keeps the game-specific files inside `sandbox/<game-slug>/`
+     - [x] Produces a local browser artifact under `sandbox/dungeon-baseline-v1/` that loads without immediate crashes
+     - [x] Implements the core v0 loop defined in `specs/dungeon-baseline-v1.md`
+     - [x] Keeps the game-specific files inside `sandbox/dungeon-baseline-v1/`
    - Tests required: Yes, extend the sandbox harness or add smoke checks
    - Estimated complexity: High
 
-2. [ ] **Playtest and log the first failure inventory for the active game**
-   - Spec: `specs/<game-slug>.md`
+2. [ ] **Playtest and log the first failure inventory for dungeon-baseline-v1**
+   - Spec: `specs/dungeon-baseline-v1.md`
    - Acceptance criteria:
      - [ ] `STATUS.md` records the artifact path and launch method
      - [ ] The first visible gameplay failures are grouped by system
@@ -55,8 +55,8 @@ See `PROJECT.md` for the full project constitution for this Codex-first autonomo
    - Tests required: No
    - Estimated complexity: Medium
 
-3. [ ] **Fix the highest-leverage issue from the first active-game playtest**
-   - Spec: `specs/<game-slug>.md`
+3. [ ] **Fix the highest-leverage issue from the first dungeon-baseline-v1 playtest**
+   - Spec: `specs/dungeon-baseline-v1.md`
    - Acceptance criteria:
      - [ ] Resolves one major blocker to the playable core or records a concrete blocker
      - [ ] Updates tests or smoke checks when practical

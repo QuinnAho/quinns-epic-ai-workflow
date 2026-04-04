@@ -8,8 +8,8 @@
  *
  * Usage:
  *   node scripts/visual-review.mjs <game-slug>
- *   node scripts/visual-review.mjs snake-game --states load,play,gameover
- *   node scripts/visual-review.mjs snake-game --review  # Send to vision model
+ *   node scripts/visual-review.mjs <game-slug> --states load,play,gameover
+ *   node scripts/visual-review.mjs <game-slug> --review  # Send to vision model
  *
  * Requires: npx playwright install chromium (one-time setup)
  */
@@ -230,3 +230,4 @@ async function main() {
 }
 
 main();
+

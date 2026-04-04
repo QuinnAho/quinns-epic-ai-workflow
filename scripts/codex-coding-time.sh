@@ -15,6 +15,7 @@ MAX_TASKS="${MAX_TASKS:-10}"
 TASK_TIMEOUT="${TASK_TIMEOUT:-3600}"  # 60 minutes per task
 MAX_CONSECUTIVE_FAILURES=3
 RATE_LIMIT_PAUSE=1800  # 30 minutes
+TASK_RETRYABLE_TOOL_RETRIES="${TASK_RETRYABLE_TOOL_RETRIES:-1}"
 LOG_DIR=".codex-logs"
 SANDBOX_DIR="sandbox"
 SESSION_ID=$(date +%Y%m%d_%H%M%S)
@@ -177,6 +178,20 @@ mark_task_blocked() {
     sed -i "${line_num}s/\[ \]/[B]/" AGENTS.md
 }
 
+is_retryable_tool_failure_log() {
+    local log_path=$1
+
+    if [ ! -f "$log_path" ]; then
+        return 1
+    fi
+
+    if grep -E -q 'writing outside of the project|rejected by user approval settings|Access is denied' "$log_path"; then
+        return 1
+    fi
+
+    grep -E -q 'Failed to write file|Failed to read file to update|patch rejected|patch: failed|BLOCKED: .*tool failure|BLOCKED: .*apply_patch|BLOCKED: .*patch|BLOCKED: .*write' "$log_path"
+}
+
 # Execute a single task with Codex
 execute_task() {
     local task_num=$1
@@ -199,7 +214,7 @@ execute_task() {
     fi
 
     # Build the Codex prompt
-    local prompt="You are implementing a task from AGENTS.md.
+    local base_prompt="You are implementing a task from AGENTS.md.
 
 Task: $task_desc
 Spec file: $task_spec
@@ -217,8 +232,11 @@ Instructions:
 $self_review_instruction
 9. Fix any material findings from that self-review, or document the remaining limitation clearly in STATUS.md if it is intentionally deferred.
 10. Run relevant checks and update STATUS.md with artifact status or blocker details when useful.
-11. If the task is complete, output TASK_COMPLETE.
-12. If blocked, output BLOCKED: <reason>.
+11. When creating a brand-new file, use `apply_patch` with `*** Add File:` and a repo-relative path. Do not use absolute filesystem paths in patch headers.
+12. If an in-repo `apply_patch` write fails with `Failed to write file`, assume a patch-shape or file-creation-mode problem before assuming the directory is missing. Adjust the patch materially instead of re-probing the repo root.
+13. Do not output BLOCKED for ordinary in-repo tool-format failures until you have tried at least 3 materially different fixes. Reserve BLOCKED for true boundary, approval, access-denied, or missing-input failures.
+14. If the task is complete, output TASK_COMPLETE.
+15. If blocked, output BLOCKED: <reason>.
 
 Follow the project constitution in PROJECT.md. This repo is Codex-only. Do not wait for an external review step; perform the reviewer pass yourself before TASK_COMPLETE. Prefer browser-playable increments, delta-time-safe logic, and explicit follow-up notes.
 Unless you are editing shared workflow files, keep game-specific HTML, code, and assets inside sandbox/<game-slug>/ and follow the artifact path defined by the spec.
@@ -226,37 +244,83 @@ When delegation helps, use the project-scoped custom agents in .codex/agents, es
 Before completing visual tasks, consult the game-ux-polish skill to ensure player experience polish: no debug artifacts, proper feedback on hits/actions, smooth camera, and clean UI.
 
 Begin by reading the available context and the spec."
+    local prompt="$base_prompt"
+    local attempt=1
+    local max_attempts=$((TASK_RETRYABLE_TOOL_RETRIES + 1))
 
-    # Run Codex with full-auto and timeout
-    local output_file="$LOG_DIR/task_${task_num}_$SESSION_ID.log"
-
-    if timeout $TASK_TIMEOUT "${CODEX_LAUNCHER[@]}" exec "$prompt" \
-        -C "$PROJECT_ROOT" \
-        --full-auto \
-        --model "$CODEX_RUN_MODEL" \
-        2>&1 | tee "$output_file"; then
-
-        # Check for completion signals in output
-        if grep -q "TASK_COMPLETE" "$output_file"; then
-            log "${GREEN}Task completed successfully${NC}"
-            return 0
-        elif grep -q "BLOCKED" "$output_file"; then
-            local blocker=$(grep "BLOCKED:" "$output_file" | head -1 | sed 's/.*BLOCKED: //')
-            log "${YELLOW}Task blocked: $blocker${NC}"
-            return 2
-        else
-            log "${YELLOW}Task finished without clear completion signal${NC}"
-            # Check if tests pass
-            if ./scripts/quality-gate.sh >> "$output_file" 2>&1; then
-                return 0
-            else
-                return 1
-            fi
+    while [ "$attempt" -le "$max_attempts" ]; do
+        local output_file="$LOG_DIR/task_${task_num}_$SESSION_ID.log"
+        if [ "$attempt" -gt 1 ]; then
+            output_file="$LOG_DIR/task_${task_num}_retry${attempt}_$SESSION_ID.log"
         fi
-    else
-        log "${RED}Task execution failed or timed out${NC}"
-        return 1
-    fi
+
+        if timeout $TASK_TIMEOUT "${CODEX_LAUNCHER[@]}" exec "$prompt" \
+            -C "$PROJECT_ROOT" \
+            --full-auto \
+            --model "$CODEX_RUN_MODEL" \
+            2>&1 | tee "$output_file"; then
+
+            if grep -q "TASK_COMPLETE" "$output_file"; then
+                log "${GREEN}Task completed successfully${NC}"
+                return 0
+            elif grep -q "BLOCKED" "$output_file"; then
+                local blocker=$(grep "BLOCKED:" "$output_file" | head -1 | sed 's/.*BLOCKED: //')
+                if [ "$attempt" -lt "$max_attempts" ] && is_retryable_tool_failure_log "$output_file"; then
+                    log "${YELLOW}Retrying after retryable tool blocker: $blocker${NC}"
+                    attempt=$((attempt + 1))
+                    prompt=$(cat <<EOF
+$base_prompt
+
+Previous attempt result:
+- BLOCKED due to a retryable in-repo tool failure: $blocker
+
+Retry instructions:
+- Continue from the current workspace state instead of restarting discovery.
+- Focus on repairing the failed tool step.
+- Do not output BLOCKED for patch-shape, wrong add/update mode, or similar in-repo tool-format problems until you have tried at least 3 materially different fixes.
+- Reserve BLOCKED for true project-boundary, approval, access-denied, or missing-human-input failures.
+EOF
+)
+                    continue
+                fi
+
+                log "${YELLOW}Task blocked: $blocker${NC}"
+                return 2
+            else
+                log "${YELLOW}Task finished without clear completion signal${NC}"
+                if ./scripts/quality-gate.sh >> "$output_file" 2>&1; then
+                    return 0
+                else
+                    return 1
+                fi
+            fi
+        else
+            if [ "$attempt" -lt "$max_attempts" ] && is_retryable_tool_failure_log "$output_file"; then
+                log "${YELLOW}Retrying after retryable tool execution failure${NC}"
+                attempt=$((attempt + 1))
+                prompt=$(cat <<EOF
+$base_prompt
+
+Previous attempt result:
+- Retryable in-repo tool failure during execution.
+
+Retry instructions:
+- Continue from the current workspace state instead of restarting discovery.
+- Focus on repairing the failed tool step.
+- Do not output BLOCKED for patch-shape, wrong add/update mode, or similar in-repo tool-format problems until you have tried at least 3 materially different fixes.
+- Reserve BLOCKED for true project-boundary, approval, access-denied, or missing-human-input failures.
+EOF
+)
+                continue
+            fi
+
+            log "${RED}Task execution failed or timed out${NC}"
+            return 1
+        fi
+    done
+
+    log "${RED}Task exhausted retryable tool retries${NC}"
+    return 1
 }
 
 # Update STATUS.md with task result

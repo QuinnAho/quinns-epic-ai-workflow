@@ -6,6 +6,23 @@ This repository is a game-generation fork of **A Day in an AI Agent**. It adapts
 
 The active game intake now comes from the guided generator flow in [generate-game.sh](./scripts/generate-game.sh). Each generated game stores its original brief in `sandbox/<game-slug>/idea.txt`, any clarification answers in `sandbox/<game-slug>/clarifications.txt`, and a combined intake source in `sandbox/<game-slug>/intake.md`.
 
+## Demo Comparison
+
+This repo includes a side-by-side comparison of two dungeon-game outputs generated from the exact same prompt:
+
+```text
+Build a 3D first-person dungeon game in a single HTML file using Three.js. The player explores interconnected rooms using WASD + mouse look with pointer lock. Rooms are connected by corridors. The dungeon has torch lighting with flickering point lights and fog. The player has health and a simple attack (click to swing). Enemies patrol rooms and chase the player when in range. Collision detection prevents the player and enemies from walking through walls. There's a 2D minimap overlay in the corner showing rooms, the player position, and enemy positions. The player collects keys to unlock doors. Include a HUD showing health and key count.
+```
+
+- [Play the baseline boilerplate Codex version](https://quinnaho.github.io/quinns-epic-ai-workflow/without-workflow/)
+- [Play the workflow-generated version](https://quinnaho.github.io/quinns-epic-ai-workflow/with-workflow/)
+- [Open the comparison page](https://quinnaho.github.io/quinns-epic-ai-workflow/)
+- One version was generated with baseline boilerplate Codex alone.
+- One version was generated with this AI workflow using the same prompt.
+- In the workflow-driven run, unit tests were also generated automatically as part of the output.
+- No manual additions or post-prompt changes were applied to either version; both were generated fully autonomously.
+- These links are served through GitHub Pages once the repo's Pages deployment runs from `main`.
+
 ## What This Repo Is For
 
 - Generating playable web games from specs and prompts

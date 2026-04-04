@@ -15,7 +15,7 @@ The active loop is:
 
 1. Run `./scripts/generate-game.sh` to collect the game name and brief
 2. Let the same script gather a few Codex-generated clarification answers when they materially improve the first playable spec
-3. Generate or refine a spec with `./scripts/generate-game.sh`, which also records `sandbox/<game-slug>/baseline-ref.txt` and scaffolds baseline tests in `sandbox/<game-slug>/tests/`
+3. Generate or refine a spec with `./scripts/generate-game.sh`, which also records `sandbox/<game-slug>/baseline-ref.txt`, writes a deterministic `sandbox/<game-slug>/spec-generation-context.md` bundle, and scaffolds baseline tests in `sandbox/<game-slug>/tests/`
 4. Start from the seeded starter queue in `AGENTS.md`
 5. Run `./scripts/codex-coding-time.sh`
 6. Serve or inspect the resulting browser artifact with `./scripts/run-game.sh`
@@ -52,10 +52,11 @@ The active loop is:
 - `sandbox/<game-slug>/baseline-ref.txt`: baseline commit captured when the game started
 - `sandbox/<game-slug>/clarifications.txt`: user answers to Codex-generated intake questions
 - `sandbox/<game-slug>/intake.md`: combined intake source used during spec generation
+- `sandbox/<game-slug>/spec-generation-context.md`: deterministic repo/workspace context bundle fed into spec generation and clarification prompts
 - `sandbox/<game-slug>/tests/`: reusable built-in test harness for smoke checks and extracted game logic
 - `sandbox/<game-slug>/release/`: archived release bundle for a finished game
 - `scripts/codex-cli.mjs`: repo-local Codex CLI launcher for stable automation entry on Windows and Unix-like environments
-- `scripts/generate-game.sh`: opens a guided terminal prompt, records the brief in the sandbox workspace, gathers Codex-generated clarification answers when needed, creates a detailed implementation spec, and seeds the starter queue
+- `scripts/generate-game.sh`: opens a guided terminal prompt, records the brief in the sandbox workspace, generates a deterministic context bundle for the active game, gathers Codex-generated clarification answers when needed, creates a detailed implementation spec, and seeds the starter queue
 - `scripts/run-game.sh`: serves the current browser artifact locally
 - `scripts/codex-coding-time.sh`: main autonomous runner
 - `scripts/finalize-game-release.mjs`: writes a release bundle inside `sandbox/<game-slug>/release/` and restores everything outside that game workspace to the recorded baseline commit

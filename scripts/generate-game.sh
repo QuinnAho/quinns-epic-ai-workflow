@@ -22,6 +22,7 @@ CODEX_LAUNCHER=(node "$PROJECT_ROOT/scripts/codex-cli.mjs")
 CODEX_SPEC_MODEL="${CODEX_SPEC_MODEL:-gpt-5.4}"
 CODEX_SPEC_TIMEOUT="${CODEX_SPEC_TIMEOUT:-1200}"
 CODEX_SPEC_MAX_REPEAT_ERRORS="${CODEX_SPEC_MAX_REPEAT_ERRORS:-2}"
+CODEX_SPEC_RETRYABLE_RETRIES="${CODEX_SPEC_RETRYABLE_RETRIES:-1}"
 CODEX_SPEC_MAX_QUESTIONS="${CODEX_SPEC_MAX_QUESTIONS:-3}"
 
 # Optimization flags
@@ -196,6 +197,7 @@ refresh_paths() {
     CLARIFICATIONS_PATH="$GAME_DIR/clarifications.txt"
     INTAKE_PATH="$GAME_DIR/intake.md"
     SPEC_QUESTION_LOG_PATH="$GAME_DIR/spec-question-run.log"
+    SPEC_CONTEXT_PATH="$GAME_DIR/spec-generation-context.md"
     SPEC_RUN_LOG_PATH="$GAME_DIR/spec-generation-run.log"
 }
 
@@ -247,20 +249,29 @@ run_codex_exec() {
     local log_path="$2"
     shift 2
 
+    # Send the prompt via stdin so larger deterministic context bundles do not hit Windows argv limits.
     if command -v timeout >/dev/null 2>&1; then
-        timeout "$CODEX_SPEC_TIMEOUT" "${CODEX_LAUNCHER[@]}" exec "$prompt" \
+        printf '%s\n' "$prompt" | timeout "$CODEX_SPEC_TIMEOUT" "${CODEX_LAUNCHER[@]}" exec - \
             -C "$PROJECT_ROOT" \
             --full-auto \
             --model "$CODEX_SPEC_MODEL" \
             "$@" 2>&1 | tee "$log_path"
-        return "${PIPESTATUS[0]}"
+        return "${PIPESTATUS[1]}"
     fi
 
-    "${CODEX_LAUNCHER[@]}" exec "$prompt" \
+    printf '%s\n' "$prompt" | "${CODEX_LAUNCHER[@]}" exec - \
         -C "$PROJECT_ROOT" \
         --full-auto \
         --model "$CODEX_SPEC_MODEL" \
         "$@" 2>&1 | tee "$log_path"
+    return "${PIPESTATUS[1]}"
+}
+
+build_spec_generation_context() {
+    node "$PROJECT_ROOT/scripts/build-spec-generation-context.mjs" \
+        --slug "$SLUG" \
+        --game-name "$GAME_NAME" \
+        --complexity-tier "$GAME_COMPLEXITY_TIER" > "$SPEC_CONTEXT_PATH"
 }
 
 count_repeat_errors() {
@@ -270,7 +281,20 @@ count_repeat_errors() {
         return 0
     fi
 
-    grep -E -c 'writing outside of the project|patch rejected|rejected by user approval settings|Access is denied' "$log_path" || true
+    grep -E -c 'writing outside of the project|rejected by user approval settings|Access is denied' "$log_path" || true
+}
+
+is_retryable_tool_failure_log() {
+    local log_path="$1"
+    if [ ! -f "$log_path" ]; then
+        return 1
+    fi
+
+    if grep -E -q 'writing outside of the project|rejected by user approval settings|Access is denied' "$log_path"; then
+        return 1
+    fi
+
+    grep -E -q 'Failed to write file|Failed to read file to update|patch rejected|patch: failed|BLOCKED: .*tool failure|BLOCKED: .*apply_patch|BLOCKED: .*patch|BLOCKED: .*write' "$log_path"
 }
 
 validate_spec_run() {
@@ -312,12 +336,15 @@ generate_clarification_questions() {
     local question_prompt
 
     question_prompt=$(cat <<EOF
-You are helping with intake for this repository's game generator.
+You are helping with intake for this repository's deterministic game generator.
 
-Game name: $GAME_NAME
-Original brief file: $IDEA_RECORD_PATH
+Use the bundled context below as authoritative for repo rules, the current game workspace, and the user intake.
+Do not begin by re-reading PROJECT.md, AGENTS.md, STATUS.md, specs/_template.md, or scanning the sandbox workspace unless the context bundle is missing a critical fact.
 
-Read PROJECT.md and the original brief file if they exist.
+Context bundle path: $SPEC_CONTEXT_PATH
+
+$(cat "$SPEC_CONTEXT_PATH")
+
 Decide whether the spec generator needs clarification from the user before drafting a first playable v0.
 
 Return exactly one of these outputs:
@@ -327,7 +354,8 @@ Return exactly one of these outputs:
 Only ask questions that materially change the implementation spec for the first playable version.
 Do not use subagents.
 Do this in one pass.
-If a tool or project-boundary failure happens twice, stop and output NO_QUESTIONS.
+If the same project-boundary, approval, or access-denied failure happens twice, stop and output NO_QUESTIONS.
+Do not give up immediately for ordinary in-repo tool-format failures. Change approach materially before giving up.
 EOF
 )
 
@@ -613,53 +641,102 @@ node "$PROJECT_ROOT/scripts/scaffold-game-tests.mjs" "$GAME_DIR_REL"
 
 record_baseline_ref
 printf '%s\n' "$IDEA_TEXT" > "$IDEA_RECORD_PATH"
+build_spec_generation_context
 collect_clarifications
 write_intake_file
+build_spec_generation_context
 
 PROMPT=$(cat <<EOF
 You are creating a detailed implementation spec for this repository's autonomous web-game workflow.
 
-Game name: $GAME_NAME
-Primary intake file: $INTAKE_PATH
-Original brief file: $IDEA_RECORD_PATH
-Clarifications file: $CLARIFICATIONS_PATH
-Complexity tier: $GAME_COMPLEXITY_TIER/5
+Use the bundled context below as authoritative for repo state, workflow rules, template shape, and current game workspace state.
+Do not start by re-reading PROJECT.md, AGENTS.md, STATUS.md, specs/_template.md, or scanning the sandbox workspace unless the context bundle explicitly indicates something is missing or you are about to overwrite a file.
+
+Context bundle path: $SPEC_CONTEXT_PATH
+
+$(cat "$SPEC_CONTEXT_PATH")
 
 Write the final spec to $SPEC_PATH.
 
 Instructions:
-1. Read PROJECT.md, AGENTS.md, STATUS.md, specs/_template.md, and the intake files at $INTAKE_PATH, $IDEA_RECORD_PATH, and $CLARIFICATIONS_PATH if they exist.
+1. Treat the bundled context as the source of truth for repo state, workflow rules, current game workspace files, and the intake.
 2. Use the repository skills game-spec-generator, game-movement-systems, game-character-systems, game-environment-systems, game-gameplay-systems, game-ui-hud-systems, game-collision-systems, game-ai-systems, game-ux-polish, and library-selector when relevant.
 3. Use the library-selector skill to determine if any CDN libraries should be included. For tier 1-2 games, prefer vanilla JS. For tier 3+ games, consider frameworks only if they genuinely reduce complexity.
-4. For simple games (tier 1-2: Snake, Pong, Breakout, Flappy Bird), do not use subagents. Write the spec directly in one pass.
-5. For moderate games (tier 3), use at most one refinement pass total. If you use spec_analyst or spec_architect, do one narrow pass and then write the final spec. Do not loop.
-6. For complex games (tier 4-5), you may use spec_analyst and spec_architect once each, but keep iteration minimal. Prefer a stable v0 over comprehensive feature coverage.
-7. If the same tool, path, sandbox, or project-boundary failure happens twice, stop immediately and output BLOCKED: repeated tool failure.
-8. Do not retry writes outside the repo root. The target spec path is inside this project.
-9. The game workspace for this idea is $GAME_DIR_REL.
-10. The default v0 browser artifact path should be $TARGET_ARTIFACT_REL unless the spec has a strong reason to use a nested entry path such as $GAME_DIR_REL/public/index.html or $GAME_DIR_REL/dist/index.html.
-11. Keep all game-specific code, assets, and generated files inside $GAME_DIR_REL. Only shared workflow files should live outside that folder.
-12. Baseline test files already exist in $GAME_DIR_REL/tests/. The spec should treat those as the default validation harness and expand them as pure logic is extracted.
-13. Produce an implementation-ready v0 spec for a browser-playable game, not a vague design note.
-14. Be explicit about workspace path, artifact path, run method, controls, camera, world structure, systems, failure modes, acceptance criteria, validation steps, and thin task breakdown.
-15. Keep the scope realistic for autonomous implementation. Prefer a stable playable core over feature sprawl.
-16. Treat the combined intake in $INTAKE_PATH as the source of truth. Keep the implemented game aligned with the user's name, brief, and clarification answers.
-17. If any external libraries are recommended, include them in the Technical Architecture section with pinned CDN URLs.
-18. Save the spec to $SPEC_PATH and overwrite any existing contents there if needed.
-19. Output TASK_COMPLETE when the spec is written.
+4. Do not spend tokens rediscovering repo state that is already present in the bundle.
+5. For simple games (tier 1-2: Snake, Pong, Breakout, Flappy Bird), do not use subagents. Write the spec directly in one pass.
+6. For moderate games (tier 3), use at most one refinement pass total. If you use spec_analyst or spec_architect, do one narrow pass and then write the final spec. Do not loop.
+7. For complex games (tier 4-5), you may use spec_analyst and spec_architect once each, but keep iteration minimal. Prefer a stable v0 over comprehensive feature coverage.
+8. If the same project-boundary, sandbox-permission, approval, or access-denied failure happens twice, stop immediately and output BLOCKED: repeated boundary failure.
+9. For ordinary in-repo tool failures such as patch shape, wrong add/update mode, or similar `apply_patch` formatting mistakes, do not block immediately. Make at least 3 materially different repair attempts before concluding the tool path is truly blocked.
+10. Do not retry writes outside the repo root. The target spec path is inside this project.
+11. The game workspace for this idea is $GAME_DIR_REL.
+12. The default v0 browser artifact path should be $TARGET_ARTIFACT_REL unless the spec has a strong reason to use a nested entry path such as $GAME_DIR_REL/public/index.html or $GAME_DIR_REL/dist/index.html.
+13. Keep all game-specific code, assets, and generated files inside $GAME_DIR_REL. Only shared workflow files should live outside that folder.
+14. Baseline test files already exist in $GAME_DIR_REL/tests/. The spec should treat those as the default validation harness and expand them as pure logic is extracted.
+15. Produce an implementation-ready v0 spec for a browser-playable game, not a vague design note.
+16. Be explicit about workspace path, artifact path, run method, controls, camera, world structure, systems, failure modes, acceptance criteria, validation steps, and thin task breakdown.
+17. Keep the scope realistic for autonomous implementation. Prefer a stable playable core over feature sprawl.
+18. Treat the bundled intake snapshot as the source of truth. Keep the implemented game aligned with the user's name, brief, and clarification answers.
+19. If any external libraries are recommended, include them in the Technical Architecture section with pinned CDN URLs.
+20. Save the spec to $SPEC_PATH and overwrite any existing contents there if needed.
+21. Because the bundled context already states whether the spec exists, use `apply_patch` with a repo-relative path. If the target spec does not exist, create it with `*** Add File: specs/$SLUG.md`; do not use an absolute filesystem path in the patch header.
+22. If an in-repo `apply_patch` write fails with `Failed to write file`, treat it as a patch-shape or file-creation-mode problem first, not as evidence that the parent directory is missing. Change the patch materially before retrying.
+23. Output TASK_COMPLETE when the spec is written.
 EOF
 )
 
 echo "Generating spec at $SPEC_PATH"
 echo "Game workspace: $GAME_DIR"
 echo "Saved brief: $IDEA_RECORD_PATH"
-if ! run_codex_exec "$PROMPT" "$SPEC_RUN_LOG_PATH"; then
-    echo "Error: spec generation failed."
-    echo "See: $SPEC_RUN_LOG_PATH"
-    exit 1
-fi
-guard_against_repeat_errors "$SPEC_RUN_LOG_PATH" "Spec generation"
-validate_spec_run "$SPEC_RUN_LOG_PATH"
+echo "Saved context bundle: $SPEC_CONTEXT_PATH"
+SPEC_PROMPT="$PROMPT"
+SPEC_MAX_ATTEMPTS=$((CODEX_SPEC_RETRYABLE_RETRIES + 1))
+SPEC_ATTEMPT=1
+
+while true; do
+    if ! run_codex_exec "$SPEC_PROMPT" "$SPEC_RUN_LOG_PATH"; then
+        SPEC_RUN_EXIT=$?
+    else
+        SPEC_RUN_EXIT=0
+    fi
+
+    guard_against_repeat_errors "$SPEC_RUN_LOG_PATH" "Spec generation"
+
+    if [ -f "$SPEC_PATH" ] && grep -q 'TASK_COMPLETE' "$SPEC_RUN_LOG_PATH"; then
+        break
+    fi
+
+    if [ -f "$SPEC_PATH" ] && [ -s "$SPEC_PATH" ]; then
+        break
+    fi
+
+    if [ "$SPEC_ATTEMPT" -lt "$SPEC_MAX_ATTEMPTS" ] && is_retryable_tool_failure_log "$SPEC_RUN_LOG_PATH"; then
+        SPEC_ATTEMPT=$((SPEC_ATTEMPT + 1))
+        echo "Retrying spec generation after retryable in-repo tool failure ($SPEC_ATTEMPT/$SPEC_MAX_ATTEMPTS)..."
+        SPEC_PROMPT=$(cat <<EOF
+$PROMPT
+
+Previous attempt result:
+- Retryable in-repo tool failure while writing or patching inside this repo.
+
+Retry instructions:
+- Continue from the current workspace state instead of restarting analysis.
+- Focus on repairing the failed tool step.
+- Do not output BLOCKED for patch-shape, wrong add/update mode, or similar in-repo tool-format problems until you have tried at least 3 materially different fixes.
+- Reserve BLOCKED for true project-boundary, approval, access-denied, or missing-human-input failures.
+EOF
+)
+        continue
+    fi
+
+    if [ "$SPEC_RUN_EXIT" -ne 0 ]; then
+        echo "Error: spec generation failed."
+        echo "See: $SPEC_RUN_LOG_PATH"
+        exit 1
+    fi
+
+    validate_spec_run "$SPEC_RUN_LOG_PATH"
+done
 seed_agents_queue
 if [ "$SEED_AGENTS" -eq 1 ]; then
     echo "Seeded AGENTS.md with a starter queue for $GAME_NAME"

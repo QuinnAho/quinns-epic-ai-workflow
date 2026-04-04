@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const gameDir = path.resolve(testDir, '..');
@@ -14,13 +14,6 @@ const entryCandidates = [
   path.join(gameDir, 'dist', 'index.html'),
 ];
 const entryPath = entryCandidates.find((candidate) => existsSync(candidate)) ?? null;
-const supportModuleFiles = [
-  path.join(gameDir, 'src', 'config.js'),
-  path.join(gameDir, 'src', 'simulation.js'),
-  path.join(gameDir, 'src', 'rendering.js'),
-  path.join(gameDir, 'src', 'input.js'),
-  path.join(gameDir, 'src', 'ui.js'),
-].filter((candidate) => existsSync(candidate));
 
 function isLocalReference(reference) {
   return (
@@ -77,6 +70,31 @@ test(
 );
 
 test(
+  'entry file contains the dungeon blueprint and gameplay HUD shells',
+  { skip: !entryPath },
+  () => {
+    const html = readFileSync(entryPath, 'utf8');
+    assert.match(html, /id="dungeon-blueprint"/, 'Expected the single-file artifact to embed its dungeon blueprint.');
+    assert.match(html, /id="hud"/, 'Expected the HUD shell to exist.');
+    assert.match(html, /id="minimap"/, 'Expected a minimap canvas to exist.');
+    assert.match(html, /id="overlay"/, 'Expected a start\/pause\/end overlay to exist.');
+  },
+);
+
+test(
+  'entry file imports Three.js from a pinned CDN module',
+  { skip: !entryPath },
+  () => {
+    const html = readFileSync(entryPath, 'utf8');
+    assert.match(
+      html,
+      /https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.160\.0\/build\/three\.module\.min\.js/,
+      'Expected the artifact to use the pinned Three.js CDN import.',
+    );
+  },
+);
+
+test(
   'local asset references resolve from the entry file',
   { skip: !entryPath },
   () => {
@@ -87,19 +105,6 @@ test(
     for (const reference of references) {
       const assetPath = path.resolve(entryDir, reference);
       assert.equal(existsSync(assetPath), true, `Missing local asset reference: ${reference}`);
-    }
-  },
-);
-
-test(
-  'support browser modules import without runtime errors in Node',
-  { skip: supportModuleFiles.length === 0 },
-  async () => {
-    for (const moduleFile of supportModuleFiles) {
-      await assert.doesNotReject(
-        async () => import(pathToFileURL(moduleFile).href),
-        `Expected ${path.relative(gameDir, moduleFile)} to import cleanly`,
-      );
     }
   },
 );

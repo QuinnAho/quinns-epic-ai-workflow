@@ -8,7 +8,7 @@
  *
  * Usage:
  *   node scripts/check-game-done.mjs <game-slug>
- *   node scripts/check-game-done.mjs snake-game --strict
+ *   node scripts/check-game-done.mjs <game-slug> --strict
  *
  * Exit codes:
  *   0 = Game is done, skip remaining tasks
@@ -247,3 +247,4 @@ function main() {
 }
 
 main();
+

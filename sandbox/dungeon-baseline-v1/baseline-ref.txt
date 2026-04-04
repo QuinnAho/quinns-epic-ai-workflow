@@ -1,0 +1,4 @@
+game_slug=dungeon-baseline-v1
+captured_at=2026-04-03T20:40:20Z
+baseline_commit=9e14c01fef22facb04b18e86df41a86b3a7dbb40
+baseline_branch=ai-game-gen-experiment
