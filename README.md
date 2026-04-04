@@ -21,7 +21,7 @@ Build a 3D first-person dungeon game in a single HTML file using Three.js. The p
 - One version was generated with this AI workflow using the same prompt.
 - In the workflow-driven run, unit tests were also generated automatically as part of the output.
 - No manual additions or post-prompt changes were applied to either version; both were generated fully autonomously.
-- These links are served through GitHub Pages once the repo's Pages deployment runs from `main`.
+- These links are served through GitHub Pages once the repo's Pages deployment runs from `ai-game-gen-experiment`.
 
 ## What This Repo Is For
 

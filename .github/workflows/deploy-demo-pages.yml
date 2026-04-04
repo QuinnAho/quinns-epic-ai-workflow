@@ -3,7 +3,7 @@ name: Deploy Demo Pages
 on:
   push:
     branches:
-      - main
+      - ai-game-gen-experiment
     paths:
       - ".github/workflows/deploy-demo-pages.yml"
       - "demo/**"
