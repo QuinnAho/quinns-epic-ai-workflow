@@ -7,112 +7,154 @@
     <style>
       * {
         box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
 
       body {
-        margin: 0;
-        padding: 48px 24px;
-        font-family: system-ui, -apple-system, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #111;
         background: #fff;
-        line-height: 1.6;
+        line-height: 1.5;
+        padding: 48px 24px;
       }
 
       main {
-        max-width: 640px;
-        margin: 0 auto;
+        width: 100%;
+        max-width: 720px;
+      }
+
+      header {
+        margin-bottom: 48px;
       }
 
       h1 {
-        margin: 0 0 8px;
-        font-size: 1.75rem;
+        font-size: 2rem;
         font-weight: 600;
+        letter-spacing: -0.02em;
+        margin-bottom: 12px;
       }
 
-      .subtitle {
-        margin: 0 0 32px;
-        color: #555;
+      .tagline {
+        font-size: 1.125rem;
+        color: #444;
+        max-width: 540px;
       }
 
-      h2 {
-        margin: 32px 0 12px;
-        font-size: 1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #333;
-      }
-
-      .prompt {
-        margin: 0 0 32px;
-        padding: 16px;
-        background: #f5f5f5;
-        border-left: 3px solid #111;
-        font-size: 0.95rem;
-      }
-
-      .demos {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-      }
-
-      .demo-link {
-        display: inline-block;
-        padding: 12px 24px;
+      .highlight {
         background: #111;
         color: #fff;
-        text-decoration: none;
+        padding: 2px 6px;
         font-weight: 500;
       }
 
-      .demo-link:hover {
-        background: #333;
+      section {
+        margin-bottom: 48px;
       }
 
-      .demo-link span {
-        display: block;
-        font-size: 0.8rem;
-        font-weight: 400;
-        opacity: 0.7;
-      }
-
-      .note {
-        margin-top: 32px;
-        font-size: 0.9rem;
+      h2 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
         color: #666;
+        margin-bottom: 16px;
+      }
+
+      .prompt-box {
+        padding: 24px;
+        background: #fafafa;
+        border: 1px solid #e5e5e5;
+        font-size: 0.9375rem;
+        line-height: 1.7;
+      }
+
+      .demos {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      @media (max-width: 500px) {
+        .demos {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .demo-card {
+        display: block;
+        padding: 24px;
+        border: 2px solid #111;
+        text-decoration: none;
+        color: inherit;
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .demo-card:hover {
+        background: #111;
+        color: #fff;
+      }
+
+      .demo-card:hover .demo-label {
+        color: #999;
+      }
+
+      .demo-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .demo-label {
+        font-size: 0.8125rem;
+        color: #666;
+        transition: color 0.15s;
+      }
+
+      footer {
+        font-size: 0.8125rem;
+        color: #888;
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>AI Game Gen Workflow</h1>
-      <p class="subtitle">
-        Generate playable browser games from a single prompt using an autonomous AI workflow.
-      </p>
+      <header>
+        <h1>AI Game Gen Workflow</h1>
+        <p class="tagline">
+          A structured workflow that generates playable browser games from a single prompt.
+          <span class="highlight">No manual editing.</span> Just AI doing the work.
+        </p>
+      </header>
 
-      <h2>The Prompt</h2>
-      <p class="prompt">
-        Build a 3D first-person dungeon game in a single HTML file using Three.js. The player explores interconnected rooms using WASD + mouse look with pointer lock. Rooms are connected by corridors. The dungeon has torch lighting with flickering point lights and fog. The player has health and a simple attack (click to swing). Enemies patrol rooms and chase the player when in range. Collision detection prevents the player and enemies from walking through walls. There's a 2D minimap overlay in the corner showing rooms, the player position, and enemy positions. The player collects keys to unlock doors. Include a HUD showing health and key count.
-      </p>
+      <section>
+        <h2>The Prompt</h2>
+        <div class="prompt-box">
+          Build a 3D first-person dungeon game in a single HTML file using Three.js. The player explores interconnected rooms using WASD + mouse look with pointer lock. Rooms are connected by corridors. The dungeon has torch lighting with flickering point lights and fog. The player has health and a simple attack (click to swing). Enemies patrol rooms and chase the player when in range. Collision detection prevents the player and enemies from walking through walls. There's a 2D minimap overlay in the corner showing rooms, the player position, and enemy positions. The player collects keys to unlock doors. Include a HUD showing health and key count.
+        </div>
+      </section>
 
-      <h2>Compare the Results</h2>
-      <p>Same prompt. Two approaches. No manual changes after generation.</p>
+      <section>
+        <h2>Compare the Results</h2>
+        <div class="demos">
+          <a class="demo-card" href="./without-workflow/">
+            <div class="demo-title">Baseline</div>
+            <div class="demo-label">Codex with no workflow</div>
+          </a>
+          <a class="demo-card" href="./with-workflow/">
+            <div class="demo-title">Workflow</div>
+            <div class="demo-label">Structured AI process</div>
+          </a>
+        </div>
+      </section>
 
-      <div class="demos">
-        <a class="demo-link" href="./without-workflow/">
-          Baseline
-          <span>Codex alone</span>
-        </a>
-        <a class="demo-link" href="./with-workflow/">
-          Workflow
-          <span>Structured process</span>
-        </a>
-      </div>
-
-      <p class="note">
-        Click into each game to enable pointer lock controls.
-      </p>
+      <footer>
+        Same prompt. No post-generation edits. Click into each game to enable controls.
+      </footer>
     </main>
   </body>
 </html>

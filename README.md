@@ -6,7 +6,7 @@ This project demonstrates a structured AI workflow that takes a game idea and au
 
 ## See It In Action
 
-**[View the Demo](https://quinnaho.github.io/quinns-epic-ai-workflow/)**
+**[View the Demo](https://quinnaho.github.io/a-day-in-an-ai-agent/)**
 
 The demo shows two dungeon games generated from the exact same prompt:
 - One built with baseline AI (no workflow)
